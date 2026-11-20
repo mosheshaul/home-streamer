@@ -201,8 +201,8 @@ private fun SetupScreen(prefs: Prefs, onConnected: () -> Unit) {
 @Composable
 private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
     val context = LocalContext.current
-    val server = prefs.serverUrl ?: return
-    val api = remember(server) { Api(server) }
+    if (prefs.serverUrl == null) return
+    var server by remember { mutableStateOf<String?>(null) }
     val stack = remember { mutableStateListOf("") }
     val titles = remember { mutableStateListOf(prefs.serverName ?: "Library") }
     var listing by remember { mutableStateOf<Listing?>(null) }
@@ -224,9 +224,20 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
         listing = null
         error = null
         try {
-            listing = api.browse(current)
+            // Find a working address (home or away) the first time, or after an error.
+            val active = server ?: Api.resolve(prefs.serverUrl, prefs.remoteUrl)
+            if (active == null) {
+                error = if (prefs.remoteUrl == null)
+                    "Couldn't reach ${prefs.serverName ?: "the PC"}. Is the server running? To watch away from home, add the PC's Tailscale address in Settings."
+                else
+                    "Couldn't reach ${prefs.serverName ?: "the PC"} at home or through Tailscale. Check that the server is running and Tailscale is on."
+            } else {
+                server = active
+                listing = Api(active).browse(current)
+            }
         } catch (e: Exception) {
-            error = "Couldn't load from ${prefs.serverName ?: server}. Is the server running on the PC?"
+            server = null
+            error = "Lost the connection to ${prefs.serverName ?: "the PC"}. Is the server running on the PC?"
         }
         runCatching { firstFocus.requestFocus() }
     }
@@ -241,7 +252,7 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
             stack.add(item.id)
             titles.add(item.name)
         } else {
-            PlayerActivity.start(context, server, item)
+            server?.let { PlayerActivity.start(context, it, item) }
         }
     }
 
@@ -252,6 +263,10 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
                 fontSize = 26.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (server != null && server == prefs.remoteUrl && server != prefs.serverUrl) {
+                Text("Away (Tailscale)", fontSize = 14.sp, color = Color(0xFF8AB4F8))
+                Spacer(Modifier.width(12.dp))
+            }
             OutlinedButton(onClick = onSettings) { Text("Settings") }
         }
         Spacer(Modifier.height(16.dp))
@@ -386,6 +401,9 @@ private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChangeServer: () 
             Text("Server", fontSize = 18.sp, color = Color(0xFF9AA0A6))
         }
         item {
+            AwayAddressRow(prefs)
+        }
+        item {
             ListItem(
                 selected = false,
                 onClick = onChangeServer,
@@ -393,5 +411,49 @@ private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChangeServer: () 
                 supportingContent = { Text("Connected to ${prefs.serverName ?: ""} (${prefs.serverUrl?.removePrefix("http://") ?: ""})") },
             )
         }
+    }
+}
+
+@Composable
+private fun AwayAddressRow(prefs: Prefs) {
+    val scope = rememberCoroutineScope()
+    var text by remember { mutableStateOf(prefs.remoteUrl?.removePrefix("http://") ?: "") }
+    var status by remember { mutableStateOf<String?>(null) }
+    fun save() {
+        if (text.isBlank()) {
+            prefs.remoteUrl = null
+            status = "Away address removed."
+            return
+        }
+        val url = Api.normalize(text)
+        status = "Checking…"
+        scope.launch {
+            val ok = runCatching { Api(url).info(timeoutMs = 6000) }.isSuccess
+            prefs.remoteUrl = url
+            status = if (ok) "Saved. The PC answered at this address."
+            else "Saved, but the PC didn't answer right now. Check that Tailscale is on, on both devices."
+        }
+    }
+    Column(Modifier.padding(vertical = 8.dp)) {
+        Text("Away from home (Tailscale address of the PC, like 100.101.102.103)", fontSize = 16.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                textStyle = TextStyle(color = Color.White, fontSize = 20.sp),
+                cursorBrush = SolidColor(Color.White),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { save() }),
+                modifier = Modifier
+                    .width(if (LocalConfiguration.current.screenWidthDp < 600) 180.dp else 360.dp)
+                    .border(BorderStroke(2.dp, Color(0xFF5F6368)), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+            Spacer(Modifier.width(16.dp))
+            Button(onClick = { save() }) { Text("Save") }
+        }
+        status?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 14.sp, color = Color(0xFF9AA0A6)) }
     }
 }

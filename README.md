@@ -67,6 +67,21 @@ On a phone or tablet, tap the video to show the controls. TV remote controls in 
 | Left / Right (controls hidden) | Back 10 seconds / forward 30 seconds |
 | Back | Hide the controls, or leave the video |
 
+## 4. Watch away from home (Tailscale)
+
+[Tailscale](https://tailscale.com) links your PC and your devices into a private, encrypted network. Nothing is opened on your router, and only devices signed in to your Tailscale account can reach the server.
+
+1. Create a free Tailscale account, then install Tailscale on the **Windows PC** and sign in.
+2. Install **Tailscale** from the Play Store on your **phone or tablet** (or TV) and sign in with the same account. Keep it switched on when you're away.
+3. Find the PC's Tailscale address. The Home Streamer server window shows it as "Tailscale (away from home) address", for example `100.101.102.103:8095`.
+4. In the Home Streamer app, open **Settings → Away from home**, type that address, and press **Save**.
+
+The app tries the home address first and switches to Tailscale automatically when you're out. The header shows "Away (Tailscale)" when it's using it.
+
+If the app can't connect over Tailscale, Windows may treat the Tailscale network as public. Open **Windows Security → Firewall & network protection → Allow an app through firewall**, find **HomeStreamer**, and tick **Public** too.
+
+Videos are sent as the original file. Away from home, smooth playback depends on your home internet's upload speed: typical 1080p files are fine, but very high-bitrate 4K files may stutter.
+
 ## Building from source
 
 - Server: `cd server && go test ./... && GOOS=windows GOARCH=amd64 go build -o HomeStreamer.exe .`

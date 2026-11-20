@@ -14,6 +14,11 @@ class Prefs(context: Context) {
         get() = sp.getString("server_url", null)
         set(v) = sp.edit().putString("server_url", v).apply()
 
+    /** Address used away from home, such as the PC's Tailscale address (http://100.x.y.z:8095). */
+    var remoteUrl: String?
+        get() = sp.getString("remote_url", null)
+        set(v) = sp.edit().putString("remote_url", v).apply()
+
     var serverName: String?
         get() = sp.getString("server_name", null)
         set(v) = sp.edit().putString("server_name", v).apply()

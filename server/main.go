@@ -71,7 +71,11 @@ func main() {
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	log.Printf("Home Streamer server %s (%q) listening on port %d", version, cfg.Name, cfg.Port)
 	for _, ip := range lanIPs() {
-		log.Printf("  Open in a browser to test: http://%s:%d/", ip, cfg.Port)
+		if isTailscale(ip) {
+			log.Printf("  Tailscale (away from home) address: %s:%d", ip, cfg.Port)
+		} else {
+			log.Printf("  Home network address: http://%s:%d/  (open in a browser to test)", ip, cfg.Port)
+		}
 	}
 	hs := &http.Server{
 		Addr:              addr,
@@ -134,6 +138,13 @@ func lanIPs() []string {
 		}
 	}
 	return ips
+}
+
+// isTailscale reports whether ip is in Tailscale's 100.64.0.0/10 range.
+func isTailscale(ip string) bool {
+	_, cgnat, _ := net.ParseCIDR("100.64.0.0/10")
+	p := net.ParseIP(ip)
+	return p != nil && cgnat.Contains(p)
 }
 
 func logRequests(h http.Handler) http.Handler {

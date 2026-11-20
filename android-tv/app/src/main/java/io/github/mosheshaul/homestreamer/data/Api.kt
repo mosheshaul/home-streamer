@@ -73,8 +73,8 @@ class Api(val baseUrl: String) {
     fun absolute(path: String): String =
         if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
 
-    suspend fun info(): ServerInfo {
-        val o = JSONObject(get("/api/info", timeoutMs = 3000))
+    suspend fun info(timeoutMs: Int = 3000): ServerInfo {
+        val o = JSONObject(get("/api/info", timeoutMs = timeoutMs))
         return ServerInfo(o.optString("name", "PC"), o.optString("version", ""))
     }
 
@@ -102,6 +102,19 @@ class Api(val baseUrl: String) {
     }
 
     companion object {
+        /**
+         * Picks the address that works right now: the home address first (fast
+         * when on the home network), then the away address (Tailscale).
+         */
+        suspend fun resolve(home: String?, away: String?): String? {
+            val candidates = listOfNotNull(home, away).distinct()
+            for ((i, url) in candidates.withIndex()) {
+                val ok = runCatching { Api(url).info(timeoutMs = if (i == 0 && candidates.size > 1) 1500 else 5000) }.isSuccess
+                if (ok) return url
+            }
+            return null
+        }
+
         /** Accepts "192.168.1.20", "192.168.1.20:8095" or a full URL. */
         fun normalize(input: String): String {
             var s = input.trim().trimEnd('/')
