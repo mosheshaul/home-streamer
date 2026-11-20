@@ -67,7 +67,7 @@ Remote controls in the player:
 
 - Server: `cd server && go test ./... && GOOS=windows GOARCH=amd64 go build -o HomeStreamer.exe .`
 - TV app: open `android-tv/` in Android Studio, or run `./gradlew assembleRelease`.
-- GitHub Actions builds both on every push. Pushing a tag like `v0.1.0` publishes a release with `HomeStreamer.exe` and `HomeStreamerTV.apk`.
+- GitHub Actions builds both on every push and pull request. Each push to `main` publishes a new release with `HomeStreamer.exe` and `HomeStreamerTV.apk`.
 
 ### Signing the APK
 

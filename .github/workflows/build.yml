@@ -30,7 +30,8 @@ jobs:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: "0"
-        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/HomeStreamer.exe .
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number) }}
+        run: go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o ../dist/HomeStreamer.exe .
       - uses: actions/upload-artifact@v4
         with:
           name: HomeStreamer-windows
@@ -74,7 +75,8 @@ jobs:
 
   release:
     name: GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Every push to main publishes a new release, so "latest release" is always the newest build.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [server, android]
     runs-on: ubuntu-latest
     steps:
@@ -87,4 +89,8 @@ jobs:
           files: |
             dist/HomeStreamer.exe
             dist/HomeStreamerTV.apk
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.1.{0}', github.run_number) }}
+          name: Home Streamer ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          make_latest: "true"
           generate_release_notes: true
