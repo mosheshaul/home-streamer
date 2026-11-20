@@ -1,12 +1,14 @@
 package io.github.mosheshaul.homestreamer.ui
 
+import android.app.UiModeManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,15 +19,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme as phoneDarkColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -39,28 +45,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.runtime.DisposableEffect
-import androidx.tv.material3.Button
-import androidx.tv.material3.ListItem
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.OutlinedButton
-import androidx.tv.material3.Surface
-import androidx.tv.material3.SurfaceDefaults
-import androidx.tv.material3.Text
-import androidx.tv.material3.darkColorScheme
 import io.github.mosheshaul.homestreamer.data.Api
 import io.github.mosheshaul.homestreamer.data.Discovery
 import io.github.mosheshaul.homestreamer.data.FoundServer
@@ -69,22 +62,41 @@ import io.github.mosheshaul.homestreamer.data.Listing
 import io.github.mosheshaul.homestreamer.data.Prefs
 import io.github.mosheshaul.homestreamer.player.PlayerActivity
 import kotlinx.coroutines.launch
+import androidx.compose.material3.MaterialTheme as PhoneTheme
+import androidx.tv.material3.MaterialTheme as TvTheme
+import androidx.tv.material3.darkColorScheme as tvDarkColors
+
+private val Muted = Color(0xFF9AA0A6)
+private val ErrorColor = Color(0xFFF28B82)
+private val Accent = Color(0xFF8AB4F8)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = Prefs(this)
+        val isTv = isTelevision(this)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    colors = SurfaceDefaults.colors(containerColor = Color(0xFF0F1318), contentColor = Color(0xFFE8EAED)),
-                ) {
-                    App(prefs)
+            CompositionLocalProvider(LocalIsTv provides isTv) {
+                PhoneTheme(colorScheme = phoneDarkColors(primary = Accent)) {
+                    TvTheme(colorScheme = tvDarkColors()) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = Color(0xFF0F1318),
+                            contentColor = Color(0xFFE8EAED),
+                        ) {
+                            Box(Modifier.fillMaxSize().safeDrawingPadding()) { App(prefs) }
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+private fun isTelevision(context: Context): Boolean {
+    val ui = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
+    return ui?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
 }
 
 /** Screen-edge padding: roomy on TVs, tighter on phones. */
@@ -97,7 +109,11 @@ private enum class Screen { Setup, Browse, Settings }
 private fun App(prefs: Prefs) {
     var screen by remember { mutableStateOf(if (prefs.serverUrl == null) Screen.Setup else Screen.Browse) }
     when (screen) {
-        Screen.Setup -> SetupScreen(prefs, onConnected = { screen = Screen.Browse })
+        Screen.Setup -> SetupScreen(
+            prefs,
+            onConnected = { screen = Screen.Browse },
+            onBack = if (prefs.serverUrl != null) ({ screen = Screen.Settings }) else null,
+        )
         Screen.Browse -> BrowseScreen(prefs, onSettings = { screen = Screen.Settings })
         Screen.Settings -> SettingsScreen(
             prefs,
@@ -110,27 +126,54 @@ private fun App(prefs: Prefs) {
 // ---------- Setup: find the PC ----------
 
 @Composable
-private fun SetupScreen(prefs: Prefs, onConnected: () -> Unit) {
+private fun SetupScreen(prefs: Prefs, onConnected: () -> Unit, onBack: (() -> Unit)?) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val isTv = LocalIsTv.current
     var searching by remember { mutableStateOf(true) }
+    var connecting by remember { mutableStateOf(false) }
     var found by remember { mutableStateOf<List<FoundServer>>(emptyList()) }
     var manual by remember { mutableStateOf(prefs.serverUrl?.removePrefix("http://") ?: "") }
+    var away by remember { mutableStateOf(prefs.remoteUrl?.removePrefix("http://") ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
     var searchRound by remember { mutableIntStateOf(0) }
     val firstFocus = remember { FocusRequester() }
 
+    if (onBack != null) BackHandler(onBack = onBack)
+
+    fun saveAway() {
+        prefs.remoteUrl = away.takeIf { it.isNotBlank() }?.let { Api.normalize(it) }
+    }
+
     fun connect(url: String, name: String?) {
+        if (connecting) return
         scope.launch {
+            connecting = true
             error = null
-            try {
-                val info = Api(url).info()
+            saveAway()
+            // Try the address given, then the away address if there is one.
+            val working = Api.resolve(url, prefs.remoteUrl)
+            if (working != null) {
+                val info = runCatching { Api(working).info() }.getOrNull()
                 prefs.serverUrl = url
-                prefs.serverName = name ?: info.name
+                // A Tailscale address works at home too, so remember it as the away address as well.
+                if (Api.isTailscale(url) && prefs.remoteUrl == null) prefs.remoteUrl = url
+                prefs.serverName = name ?: info?.name ?: "PC"
+                connecting = false
                 onConnected()
-            } catch (e: Exception) {
-                error = "Couldn't reach $url. Check that the server is running on the PC and that both are on the same network."
+            } else {
+                connecting = false
+                error = "Couldn't reach ${url.removePrefix("http://")}. Check that HomeStreamer is running on the PC. " +
+                    "Away from home, use the PC's Tailscale address and make sure Tailscale is on, on this device too."
             }
+        }
+    }
+
+    fun connectTyped() {
+        when {
+            manual.isNotBlank() -> connect(Api.normalize(manual), null)
+            away.isNotBlank() -> connect(Api.normalize(away), null)
+            else -> error = "Type the PC's address first."
         }
     }
 
@@ -138,60 +181,71 @@ private fun SetupScreen(prefs: Prefs, onConnected: () -> Unit) {
         searching = true
         found = Discovery.find(context)
         searching = false
-        runCatching { firstFocus.requestFocus() }
+        if (isTv) runCatching { firstFocus.requestFocus() }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = edge(64.dp), vertical = edge(40.dp))) {
-        Text("Connect to your PC", fontSize = 32.sp)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Start the Home Streamer server on the PC, then pick it below.",
-            color = Color(0xFF9AA0A6), fontSize = 16.sp,
-        )
-        Spacer(Modifier.height(24.dp))
-        when {
-            searching -> Text("Searching the network…", fontSize = 18.sp)
-            found.isEmpty() -> Text("No PC found automatically. Type its address below.", fontSize = 18.sp)
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f, fill = false)) {
-            items(found, key = { it.url }) { s ->
-                val idx = found.indexOf(s)
-                ListItem(
-                    selected = false,
-                    onClick = { connect(s.url, s.name) },
-                    headlineContent = { Text(s.name) },
-                    supportingContent = { Text(s.url.removePrefix("http://")) },
-                    leadingContent = { Text("🖥", fontSize = 22.sp) },
-                    modifier = if (idx == 0) Modifier.focusRequester(firstFocus) else Modifier,
-                )
-            }
-        }
-        Spacer(Modifier.height(24.dp))
-        Text("PC address (for example 192.168.1.20)", fontSize = 16.sp, color = Color(0xFF9AA0A6))
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            BasicTextField(
-                value = manual,
-                onValueChange = { manual = it },
-                singleLine = true,
-                textStyle = TextStyle(color = Color.White, fontSize = 20.sp),
-                cursorBrush = SolidColor(Color.White),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { if (manual.isNotBlank()) connect(Api.normalize(manual), null) }),
-                modifier = Modifier
-                    .width(if (LocalConfiguration.current.screenWidthDp < 600) 180.dp else 360.dp)
-                    .border(BorderStroke(2.dp, Color(0xFF5F6368)), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-                    .then(if (found.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier),
-            )
-            Spacer(Modifier.width(16.dp))
-            Button(onClick = { if (manual.isNotBlank()) connect(Api.normalize(manual), null) }) { Text("Connect") }
-            Spacer(Modifier.width(12.dp))
-            OutlinedButton(onClick = { searchRound++ }, enabled = !searching) { Text("Search again") }
-        }
-        error?.let {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = edge(64.dp), vertical = edge(40.dp)),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            Text("Connect to your PC", fontSize = 28.sp)
+            Spacer(Modifier.height(6.dp))
+            Text("Start HomeStreamer on the PC, then pick it below or type its address.", color = Muted, fontSize = 16.sp)
             Spacer(Modifier.height(16.dp))
-            Text(it, color = Color(0xFFF28B82), fontSize = 16.sp)
+            Text(
+                when {
+                    searching -> "Searching your home network…"
+                    found.isEmpty() -> "No PC found on this network."
+                    else -> "Found on your home network:"
+                },
+                fontSize = 18.sp,
+            )
+        }
+        items(found, key = { it.url }) { s ->
+            AppListItem(
+                headline = s.name,
+                supporting = s.url.removePrefix("http://"),
+                leading = "🖥",
+                onClick = { connect(s.url, s.name) },
+                modifier = if (s == found.first()) Modifier.focusRequester(firstFocus) else Modifier,
+            )
+        }
+        item {
+            Spacer(Modifier.height(16.dp))
+            Column(Modifier.widthIn(max = 520.dp)) {
+                AppTextField(
+                    value = manual,
+                    onValueChange = { manual = it },
+                    label = "Home address of the PC, like 192.168.1.20",
+                    onDone = { connectTyped() },
+                    modifier = Modifier.fillMaxWidth()
+                        .then(if (found.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier),
+                )
+                Spacer(Modifier.height(8.dp))
+                AppTextField(
+                    value = away,
+                    onValueChange = { away = it },
+                    label = "Away from home: Tailscale address, like 100.101.102.103",
+                    onDone = { connectTyped() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Fill in either one, or both. With both, the app switches between them automatically.",
+                    color = Muted, fontSize = 14.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AppButton(if (connecting) "Connecting…" else "Connect", onClick = { connectTyped() }, enabled = !connecting)
+                    Spacer(Modifier.width(12.dp))
+                    AppButton("Search again", onClick = { searchRound++ }, enabled = !searching, primary = false)
+                }
+            }
+            error?.let {
+                Spacer(Modifier.height(16.dp))
+                Text(it, color = ErrorColor, fontSize = 16.sp)
+            }
         }
     }
 }
@@ -201,6 +255,7 @@ private fun SetupScreen(prefs: Prefs, onConnected: () -> Unit) {
 @Composable
 private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
     val context = LocalContext.current
+    val isTv = LocalIsTv.current
     if (prefs.serverUrl == null) return
     var server by remember { mutableStateOf<String?>(null) }
     val stack = remember { mutableStateListOf("") }
@@ -228,18 +283,18 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
             val active = server ?: Api.resolve(prefs.serverUrl, prefs.remoteUrl)
             if (active == null) {
                 error = if (prefs.remoteUrl == null)
-                    "Couldn't reach ${prefs.serverName ?: "the PC"}. Is the server running? To watch away from home, add the PC's Tailscale address in Settings."
+                    "Couldn't reach ${prefs.serverName ?: "the PC"}. Is HomeStreamer running? To watch away from home, add the PC's Tailscale address in Settings."
                 else
-                    "Couldn't reach ${prefs.serverName ?: "the PC"} at home or through Tailscale. Check that the server is running and Tailscale is on."
+                    "Couldn't reach ${prefs.serverName ?: "the PC"} at home or through Tailscale. Check that HomeStreamer is running and Tailscale is on."
             } else {
                 server = active
                 listing = Api(active).browse(current)
             }
         } catch (e: Exception) {
             server = null
-            error = "Lost the connection to ${prefs.serverName ?: "the PC"}. Is the server running on the PC?"
+            error = "Lost the connection to ${prefs.serverName ?: "the PC"}. Is HomeStreamer running on the PC?"
         }
-        runCatching { firstFocus.requestFocus() }
+        if (isTv) runCatching { firstFocus.requestFocus() }
     }
 
     BackHandler(enabled = stack.size > 1) {
@@ -258,25 +313,22 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
 
     Column(Modifier.fillMaxSize().padding(horizontal = edge(48.dp), vertical = edge(28.dp))) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(
-                titles.joinToString("  ›  "),
-                fontSize = 26.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            if (server != null && server == prefs.remoteUrl && server != prefs.serverUrl) {
-                Text("Away (Tailscale)", fontSize = 14.sp, color = Color(0xFF8AB4F8))
-                Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(titles.joinToString("  ›  "), fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (server != null && server == prefs.remoteUrl && server != prefs.serverUrl) {
+                    Text("Away from home (Tailscale)", fontSize = 13.sp, color = Accent)
+                }
             }
-            OutlinedButton(onClick = onSettings) { Text("Settings") }
+            AppButton("Settings", onClick = onSettings, primary = false)
         }
         Spacer(Modifier.height(16.dp))
 
         val l = listing
         when {
-            error != null -> {
-                Text(error!!, color = Color(0xFFF28B82), fontSize = 18.sp)
+            error != null -> Column {
+                Text(error!!, color = ErrorColor, fontSize = 17.sp)
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = { reload++ }, modifier = Modifier.focusRequester(firstFocus)) { Text("Try again") }
+                AppButton("Try again", onClick = { reload++ }, modifier = Modifier.focusRequester(firstFocus))
             }
             l == null -> Text("Loading…", fontSize = 18.sp)
             else -> LazyColumn(
@@ -286,7 +338,7 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
                 if (stack.size == 1 && recent.isNotEmpty()) {
                     item(key = "recent") {
                         Column {
-                            Text("Continue watching", fontSize = 18.sp, color = Color(0xFF9AA0A6))
+                            Text("Continue watching", fontSize = 17.sp, color = Muted)
                             Spacer(Modifier.height(8.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(recent, key = { "r" + it.first.id }) { (item, progress) ->
@@ -301,14 +353,12 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
                     item { Text("No videos here.", fontSize = 18.sp) }
                 }
                 items(l.items, key = { it.id }) { item ->
-                    val first = item == l.items.first()
-                    ListItem(
-                        selected = false,
+                    AppListItem(
+                        headline = item.name,
+                        supporting = if (item.isFolder) null else describe(item, prefs),
+                        leading = if (item.isFolder) "📁" else "🎬",
                         onClick = { open(item) },
-                        headlineContent = { Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        supportingContent = if (item.isFolder) null else ({ Text(describe(item, prefs)) }),
-                        leadingContent = { Text(if (item.isFolder) "📁" else "🎬", fontSize = 22.sp) },
-                        modifier = if (first) Modifier.focusRequester(firstFocus) else Modifier,
+                        modifier = if (item == l.items.first()) Modifier.focusRequester(firstFocus) else Modifier,
                     )
                 }
             }
@@ -327,16 +377,13 @@ private fun describe(item: Item, prefs: Prefs): String {
 
 @Composable
 private fun RecentCard(item: Item, progress: Float, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.width(260.dp).height(96.dp),
-    ) {
+    AppCard(onClick = onClick, modifier = Modifier.width(240.dp).height(96.dp)) {
         Column(Modifier.fillMaxSize().padding(12.dp)) {
-            Text(item.name, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            Text(item.name, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 16.sp, color = Color(0xFFE8EAED), modifier = Modifier.weight(1f))
             Box(Modifier.fillMaxWidth().height(4.dp).background(Color(0x33FFFFFF), RoundedCornerShape(2.dp))) {
                 Box(
                     Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).height(4.dp)
-                        .background(Color(0xFF8AB4F8), RoundedCornerShape(2.dp))
+                        .background(Accent, RoundedCornerShape(2.dp))
                 )
             }
         }
@@ -360,55 +407,59 @@ private val sizeChoices = listOf(0.8f to "Small", 1.0f to "Medium", 1.25f to "La
 
 @Composable
 private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChangeServer: () -> Unit) {
+    val isTv = LocalIsTv.current
     var lang by remember { mutableStateOf(prefs.subtitleLanguage) }
     var scale by remember { mutableStateOf(prefs.subtitleScale) }
     val firstFocus = remember { FocusRequester() }
     BackHandler(onBack = onBack)
-    LaunchedEffect(Unit) { runCatching { firstFocus.requestFocus() } }
+    LaunchedEffect(Unit) { if (isTv) runCatching { firstFocus.requestFocus() } }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = edge(64.dp), vertical = edge(32.dp)),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        item { Text("Settings", fontSize = 30.sp); Spacer(Modifier.height(16.dp)) }
         item {
-            Text("Subtitle language", fontSize = 18.sp, color = Color(0xFF9AA0A6))
-            Text(
-                "Picking subtitles in the player also updates this.",
-                fontSize = 14.sp, color = Color(0xFF9AA0A6),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Settings", fontSize = 28.sp, modifier = Modifier.weight(1f))
+                AppButton("Done", onClick = onBack, primary = false, modifier = Modifier.focusRequester(firstFocus))
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+        item {
+            Text("Away from home", fontSize = 18.sp, color = Muted)
+            AwayAddressRow(prefs)
+        }
+        item {
+            Spacer(Modifier.height(8.dp))
+            Text("Subtitle language", fontSize = 18.sp, color = Muted)
+            Text("Picking subtitles in the player also updates this.", fontSize = 14.sp, color = Muted)
         }
         items(subtitleChoices) { (code, label) ->
-            ListItem(
+            AppListItem(
+                headline = label,
                 selected = lang == code,
+                trailing = if (lang == code) "✓" else null,
                 onClick = { lang = code; prefs.subtitleLanguage = code },
-                headlineContent = { Text(label) },
-                trailingContent = if (lang == code) ({ Text("✓") }) else null,
-                modifier = if (code == null) Modifier.focusRequester(firstFocus) else Modifier,
             )
         }
-        item { Spacer(Modifier.height(16.dp)); Text("Subtitle size", fontSize = 18.sp, color = Color(0xFF9AA0A6)) }
+        item { Spacer(Modifier.height(16.dp)); Text("Subtitle size", fontSize = 18.sp, color = Muted) }
         items(sizeChoices) { (value, label) ->
-            ListItem(
+            AppListItem(
+                headline = label,
                 selected = scale == value,
+                trailing = if (scale == value) "✓" else null,
                 onClick = { scale = value; prefs.subtitleScale = value },
-                headlineContent = { Text(label) },
-                trailingContent = if (scale == value) ({ Text("✓") }) else null,
             )
         }
         item {
             Spacer(Modifier.height(16.dp))
-            Text("Server", fontSize = 18.sp, color = Color(0xFF9AA0A6))
+            Text("PC", fontSize = 18.sp, color = Muted)
         }
         item {
-            AwayAddressRow(prefs)
-        }
-        item {
-            ListItem(
-                selected = false,
+            AppListItem(
+                headline = "Change PC or home address",
+                supporting = "Connected to ${prefs.serverName ?: ""} (${prefs.serverUrl?.removePrefix("http://") ?: ""})",
                 onClick = onChangeServer,
-                headlineContent = { Text("Change PC") },
-                supportingContent = { Text("Connected to ${prefs.serverName ?: ""} (${prefs.serverUrl?.removePrefix("http://") ?: ""})") },
             )
         }
     }
@@ -431,29 +482,19 @@ private fun AwayAddressRow(prefs: Prefs) {
             val ok = runCatching { Api(url).info(timeoutMs = 6000) }.isSuccess
             prefs.remoteUrl = url
             status = if (ok) "Saved. The PC answered at this address."
-            else "Saved, but the PC didn't answer right now. Check that Tailscale is on, on both devices."
+            else "Saved, but the PC didn't answer right now. Check that Tailscale is on, on both the PC and this device."
         }
     }
-    Column(Modifier.padding(vertical = 8.dp)) {
-        Text("Away from home (Tailscale address of the PC, like 100.101.102.103)", fontSize = 16.sp)
+    Column(Modifier.padding(vertical = 8.dp).widthIn(max = 520.dp)) {
+        AppTextField(
+            value = text,
+            onValueChange = { text = it },
+            label = "PC's Tailscale address, like 100.101.102.103",
+            onDone = { save() },
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = true,
-                textStyle = TextStyle(color = Color.White, fontSize = 20.sp),
-                cursorBrush = SolidColor(Color.White),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { save() }),
-                modifier = Modifier
-                    .width(if (LocalConfiguration.current.screenWidthDp < 600) 180.dp else 360.dp)
-                    .border(BorderStroke(2.dp, Color(0xFF5F6368)), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            )
-            Spacer(Modifier.width(16.dp))
-            Button(onClick = { save() }) { Text("Save") }
-        }
-        status?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 14.sp, color = Color(0xFF9AA0A6)) }
+        AppButton("Save", onClick = { save() })
+        status?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 14.sp, color = Muted) }
     }
 }

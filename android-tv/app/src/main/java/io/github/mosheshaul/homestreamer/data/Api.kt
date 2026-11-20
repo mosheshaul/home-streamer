@@ -115,6 +115,13 @@ class Api(val baseUrl: String) {
             return null
         }
 
+        /** True for an address in Tailscale's 100.64.0.0/10 range. */
+        fun isTailscale(url: String): Boolean {
+            val host = url.substringAfter("://").substringBefore(':').substringBefore('/')
+            val parts = host.split('.').mapNotNull { it.toIntOrNull() }
+            return parts.size == 4 && parts[0] == 100 && parts[1] in 64..127
+        }
+
         /** Accepts "192.168.1.20", "192.168.1.20:8095" or a full URL. */
         fun normalize(input: String): String {
             var s = input.trim().trimEnd('/')

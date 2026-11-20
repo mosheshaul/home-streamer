@@ -55,6 +55,8 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
+    // Touch controls for phones and tablets; TV controls come from tv-material.
+    implementation("androidx.compose.material3:material3")
     implementation("androidx.tv:tv-material:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
