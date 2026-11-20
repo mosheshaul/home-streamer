@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Movies App server</title>
+<style>
+  :root { color-scheme: dark; --bg:#111418; --card:#1c2128; --fg:#e8eaed; --muted:#9aa0a6; --accent:#8ab4f8; }
+  body { margin:0; font:16px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:16px 20px; border-bottom:1px solid #2a2f36; display:flex; gap:12px; align-items:center; }
+  header h1 { font-size:18px; margin:0; }
+  #crumb { color:var(--muted); }
+  main { padding:16px 20px; max-width:1000px; }
+  ul { list-style:none; padding:0; margin:0; display:grid; gap:6px; }
+  li a { display:block; padding:10px 14px; background:var(--card); border-radius:8px; color:var(--fg); text-decoration:none; }
+  li a:hover { outline:2px solid var(--accent); }
+  .meta { color:var(--muted); font-size:13px; }
+  video { width:100%; max-height:70vh; background:#000; border-radius:8px; margin-bottom:12px; }
+  button { background:var(--card); color:var(--fg); border:1px solid #333; border-radius:6px; padding:6px 12px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header><h1>Movies App server</h1><span id="crumb"></span></header>
+<main>
+  <p class="meta">This page is for testing from the PC. Watch on the TV with the Movies App. Browsers can't play every MKV, but the TV app can.</p>
+  <div id="player" hidden><video id="video" controls crossorigin="anonymous"></video><button id="close">Close player</button><p id="subinfo" class="meta"></p></div>
+  <ul id="list"></ul>
+</main>
+<script>
+const list = document.getElementById('list');
+const crumb = document.getElementById('crumb');
+const video = document.getElementById('video');
+const player = document.getElementById('player');
+function fmtSize(b){ if(!b) return ''; const g=b/1073741824; return g>=1? g.toFixed(2)+' GB' : (b/1048576).toFixed(0)+' MB'; }
+function el(tag, props, ...kids){ const e=document.createElement(tag); Object.assign(e, props||{}); kids.forEach(k=>e.append(k)); return e; }
+async function browse(id){
+  const res = await fetch('/api/browse?id=' + encodeURIComponent(id||''));
+  if(!res.ok){ list.replaceChildren(el('li',{textContent:'Error: '+res.status})); return; }
+  const data = await res.json();
+  crumb.textContent = data.title;
+  const items = [];
+  if (data.id) items.push(el('li',{}, el('a',{href:'#', textContent:'⬆ Back', onclick:e=>{e.preventDefault(); browse(data.parentId||'');}})));
+  for (const it of data.items){
+    if (it.type === 'folder') {
+      items.push(el('li',{}, el('a',{href:'#', textContent:'📁 '+it.name, onclick:e=>{e.preventDefault(); browse(it.id);}})));
+    } else {
+      const subs = (it.subtitles||[]).map(s=>s.label).join(', ');
+      const a = el('a',{href:'#', onclick:e=>{e.preventDefault(); play(it);}}, '🎬 '+it.name, el('div',{className:'meta', textContent:[fmtSize(it.size), subs && ('Subtitles: '+subs)].filter(Boolean).join(' · ')}));
+      items.push(el('li',{}, a));
+    }
+  }
+  if (!data.items.length) items.push(el('li',{className:'meta', textContent:'No videos or folders here.'}));
+  list.replaceChildren(...items);
+}
+function play(it){
+  video.replaceChildren();
+  video.src = it.streamUrl;
+  (it.subtitles||[]).forEach((s,i)=>{
+    video.append(el('track',{kind:'subtitles', label:s.label, srclang:s.language||'', src:s.url+'?format=vtt', default:i===0}));
+  });
+  document.getElementById('subinfo').textContent = it.subtitles?.length ? 'Sidecar subtitles found: '+it.subtitles.length : 'No sidecar subtitle files (embedded subtitles show only in the TV app).';
+  player.hidden = false; video.play().catch(()=>{});
+  window.scrollTo(0,0);
+}
+document.getElementById('close').onclick = ()=>{ video.pause(); video.removeAttribute('src'); video.load(); player.hidden = true; };
+browse('');
+</script>
+</body>
+</html>
