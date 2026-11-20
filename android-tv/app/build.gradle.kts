@@ -7,11 +7,11 @@ plugins {
 val media3 = "1.6.1"
 
 android {
-    namespace = "io.github.mosheshaul.movies"
+    namespace = "io.github.mosheshaul.homestreamer"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.github.mosheshaul.movies"
+        applicationId = "io.github.mosheshaul.homestreamer"
         minSdk = 21
         targetSdk = 35
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()

@@ -1,4 +1,4 @@
-package io.github.mosheshaul.movies.data
+package io.github.mosheshaul.homestreamer.data
 
 import android.content.Context
 import android.net.wifi.WifiManager
@@ -12,15 +12,15 @@ import java.net.SocketTimeoutException
 
 data class FoundServer(val name: String, val url: String)
 
-/** Finds Movies App servers on the local network with a UDP broadcast. */
+/** Finds Home Streamer servers on the local network with a UDP broadcast. */
 object Discovery {
     private const val PORT = 47820
-    private const val QUERY = "MOVIESAPP_DISCOVER"
+    private const val QUERY = "HOMESTREAMER_DISCOVER"
 
     suspend fun find(context: Context, timeoutMs: Int = 2500): List<FoundServer> = withContext(Dispatchers.IO) {
         val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         val lock = try {
-            wifi?.createMulticastLock("movies-discovery")?.apply { setReferenceCounted(false); acquire() }
+            wifi?.createMulticastLock("home-streamer-discovery")?.apply { setReferenceCounted(false); acquire() }
         } catch (e: SecurityException) {
             null
         }
@@ -48,7 +48,7 @@ object Discovery {
                     try {
                         socket.receive(packet)
                         val o = JSONObject(String(packet.data, 0, packet.length))
-                        if (o.optString("app") == "movies-app") {
+                        if (o.optString("app") == "home-streamer") {
                             val host = packet.address.hostAddress ?: continue
                             val url = "http://$host:${o.optInt("port", 8095)}"
                             found[url] = FoundServer(o.optString("name", host), url)

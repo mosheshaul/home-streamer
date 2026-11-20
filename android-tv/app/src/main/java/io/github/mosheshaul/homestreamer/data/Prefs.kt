@@ -1,4 +1,4 @@
-package io.github.mosheshaul.movies.data
+package io.github.mosheshaul.homestreamer.data
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -8,7 +8,7 @@ import org.json.JSONObject
 /** Small on-device settings: server address, subtitle language, resume points. */
 class Prefs(context: Context) {
     private val sp: SharedPreferences =
-        context.applicationContext.getSharedPreferences("movies", Context.MODE_PRIVATE)
+        context.applicationContext.getSharedPreferences("home_streamer", Context.MODE_PRIVATE)
 
     var serverUrl: String?
         get() = sp.getString("server_url", null)

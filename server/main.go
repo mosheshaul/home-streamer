@@ -1,4 +1,4 @@
-// Movies App server: shares video folders on the home network so the
+// Home Streamer server: shares video folders on the home network so the
 // Android TV app can browse and stream them, including subtitles.
 package main
 
@@ -69,7 +69,7 @@ func main() {
 	}()
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
-	log.Printf("Movies App server %s (%q) listening on port %d", version, cfg.Name, cfg.Port)
+	log.Printf("Home Streamer server %s (%q) listening on port %d", version, cfg.Name, cfg.Port)
 	for _, ip := range lanIPs() {
 		log.Printf("  Open in a browser to test: http://%s:%d/", ip, cfg.Port)
 	}

@@ -1,4 +1,4 @@
-package io.github.mosheshaul.movies.ui
+package io.github.mosheshaul.homestreamer.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -59,13 +59,13 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import androidx.tv.material3.darkColorScheme
-import io.github.mosheshaul.movies.data.Api
-import io.github.mosheshaul.movies.data.Discovery
-import io.github.mosheshaul.movies.data.FoundServer
-import io.github.mosheshaul.movies.data.Item
-import io.github.mosheshaul.movies.data.Listing
-import io.github.mosheshaul.movies.data.Prefs
-import io.github.mosheshaul.movies.player.PlayerActivity
+import io.github.mosheshaul.homestreamer.data.Api
+import io.github.mosheshaul.homestreamer.data.Discovery
+import io.github.mosheshaul.homestreamer.data.FoundServer
+import io.github.mosheshaul.homestreamer.data.Item
+import io.github.mosheshaul.homestreamer.data.Listing
+import io.github.mosheshaul.homestreamer.data.Prefs
+import io.github.mosheshaul.homestreamer.player.PlayerActivity
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -139,7 +139,7 @@ private fun SetupScreen(prefs: Prefs, onConnected: () -> Unit) {
         Text("Connect to your PC", fontSize = 32.sp)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Start the Movies App server on the PC, then pick it below.",
+            "Start the Home Streamer server on the PC, then pick it below.",
             color = Color(0xFF9AA0A6), fontSize = 16.sp,
         )
         Spacer(Modifier.height(24.dp))

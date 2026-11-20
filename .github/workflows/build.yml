@@ -25,16 +25,16 @@ jobs:
           cache-dependency-path: server/go.sum
       - run: go vet ./...
       - run: go test ./...
-      - name: Build MoviesServer.exe
+      - name: Build HomeStreamer.exe
         env:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: "0"
-        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/MoviesServer.exe .
+        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o ../dist/HomeStreamer.exe .
       - uses: actions/upload-artifact@v4
         with:
-          name: MoviesServer-windows
-          path: dist/MoviesServer.exe
+          name: HomeStreamer-windows
+          path: dist/HomeStreamer.exe
 
   android:
     name: Android TV app
@@ -66,11 +66,11 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon assembleRelease
-          mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk ../dist/MoviesTV.apk
+          mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk ../dist/HomeStreamerTV.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: MoviesTV-apk
-          path: dist/MoviesTV.apk
+          name: HomeStreamerTV-apk
+          path: dist/HomeStreamerTV.apk
 
   release:
     name: GitHub release
@@ -85,6 +85,6 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/MoviesServer.exe
-            dist/MoviesTV.apk
+            dist/HomeStreamer.exe
+            dist/HomeStreamerTV.apk
           generate_release_notes: true

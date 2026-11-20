@@ -10,7 +10,7 @@ import (
 // DiscoveryPort is the UDP port the TV app broadcasts to when looking for servers.
 const DiscoveryPort = 47820
 
-const discoveryQuery = "MOVIESAPP_DISCOVER"
+const discoveryQuery = "HOMESTREAMER_DISCOVER"
 
 // runDiscovery answers LAN broadcast queries so the TV app can find this PC
 // without typing an IP address.
@@ -20,7 +20,7 @@ func runDiscovery(cfg *Config) error {
 		return err
 	}
 	defer conn.Close()
-	reply, _ := json.Marshal(map[string]any{"app": "movies-app", "name": cfg.Name, "port": cfg.Port, "version": version})
+	reply, _ := json.Marshal(map[string]any{"app": "home-streamer", "name": cfg.Name, "port": cfg.Port, "version": version})
 	buf := make([]byte, 512)
 	for {
 		n, from, err := conn.ReadFromUDP(buf)

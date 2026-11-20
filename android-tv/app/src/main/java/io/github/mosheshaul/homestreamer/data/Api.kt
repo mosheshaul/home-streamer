@@ -1,4 +1,4 @@
-package io.github.mosheshaul.movies.data
+package io.github.mosheshaul.homestreamer.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -67,7 +67,7 @@ data class Listing(val id: String, val title: String, val items: List<Item>)
 
 data class ServerInfo(val name: String, val version: String)
 
-/** Talks to the Movies App server on the PC. [baseUrl] looks like http://192.168.1.20:8095 */
+/** Talks to the Home Streamer server on the PC. [baseUrl] looks like http://192.168.1.20:8095 */
 class Api(val baseUrl: String) {
 
     fun absolute(path: String): String =

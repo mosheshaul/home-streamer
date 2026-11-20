@@ -52,7 +52,7 @@ func writeErr(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]any{"app": "movies-app", "name": s.cfg.Name, "version": version})
+	writeJSON(w, map[string]any{"app": "home-streamer", "name": s.cfg.Name, "version": version})
 }
 
 func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {

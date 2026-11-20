@@ -1,4 +1,4 @@
-package io.github.mosheshaul.movies.player
+package io.github.mosheshaul.homestreamer.player
 
 import android.app.Activity
 import android.app.AlertDialog
@@ -27,10 +27,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
-import io.github.mosheshaul.movies.R
-import io.github.mosheshaul.movies.data.Api
-import io.github.mosheshaul.movies.data.Item
-import io.github.mosheshaul.movies.data.Prefs
+import io.github.mosheshaul.homestreamer.R
+import io.github.mosheshaul.homestreamer.data.Api
+import io.github.mosheshaul.homestreamer.data.Item
+import io.github.mosheshaul.homestreamer.data.Prefs
 import org.json.JSONObject
 
 @OptIn(UnstableApi::class)

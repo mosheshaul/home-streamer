@@ -1,4 +1,4 @@
-module github.com/mosheshaul/movies-app/server
+module github.com/mosheshaul/home-streamer/server
 
 go 1.24.7
 
