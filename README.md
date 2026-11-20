@@ -1,13 +1,13 @@
 # Home Streamer
 
-Watch the videos on your Windows PC on an Android TV, over your home network.
+Watch the videos on your Windows PC on an Android TV, phone or tablet.
 
 - **`server/`**: a small Windows program (`HomeStreamer.exe`, written in Go) that shares your video folders.
-- **`android-tv/`**: the TV app (Kotlin, Compose for TV, Media3/ExoPlayer).
+- **`android-tv/`**: the Android app for TVs, phones and tablets (Kotlin, Compose for TV, Media3/ExoPlayer).
 
 ## What it does
 
-- Browse your folders with the TV remote, with "Continue watching" and resume.
+- Browse your folders with the TV remote or by touch, with "Continue watching" and resume.
 - Plays **MKV and MP4** (also M4V, MOV, WebM, AVI, TS) directly from the PC with no conversion, so seeking is instant and the PC barely works.
 - **Subtitles:**
   - Embedded subtitle tracks inside MKV/MP4 (SRT, SSA/ASS, PGS, and more).
@@ -41,21 +41,25 @@ Watch the videos on your Windows PC on an Android TV, over your home network.
 
 Also make sure the PC doesn't go to sleep while you watch (Settings → System → Power).
 
-## 2. Install the app on the TV
+## 2. Install the app (TV, phone or tablet)
 
 The app isn't on the Play Store, so you install the APK file yourself:
 
+**Phone or tablet:** open the [latest release](../../releases/latest) in the browser, tap `HomeStreamer-Android.apk`, and allow your browser to install apps when asked.
+
+**TV:**
+
 1. On the TV, install **Downloader** (by AFTVnews) from the Play Store.
 2. Allow it to install apps: Settings → Apps → Security & restrictions → **Unknown sources** → turn on Downloader. The exact menu names vary by TV.
-3. In Downloader, enter the link to `HomeStreamerTV.apk` from the [latest release](../../releases/latest) and install it.
+3. In Downloader, enter the link to `HomeStreamer-Android.apk` from the [latest release](../../releases/latest) and install it.
 
-Or with a computer on the same network: enable Developer options and network debugging on the TV, then run `adb connect <tv-ip>` and `adb install HomeStreamerTV.apk`.
+Or with a computer on the same network: enable Developer options and network debugging on the TV, then run `adb connect <tv-ip>` and `adb install HomeStreamer-Android.apk`.
 
 ## 3. Watch
 
-Open **Home Streamer** on the TV. It finds the PC automatically. If it doesn't, type the PC's address (shown in the server window).
+Open **Home Streamer**. It finds the PC automatically. If it doesn't, type the PC's address (shown in the server window).
 
-Remote controls in the player:
+On a phone or tablet, tap the video to show the controls. TV remote controls in the player:
 
 | Button | Action |
 | --- | --- |
@@ -66,19 +70,12 @@ Remote controls in the player:
 ## Building from source
 
 - Server: `cd server && go test ./... && GOOS=windows GOARCH=amd64 go build -o HomeStreamer.exe .`
-- TV app: open `android-tv/` in Android Studio, or run `./gradlew assembleRelease`.
-- GitHub Actions builds both on every push and pull request. Each push to `main` publishes a new release with `HomeStreamer.exe` and `HomeStreamerTV.apk`.
+- Android app: open `android-tv/` in Android Studio, or run `./gradlew assembleRelease`.
+- GitHub Actions builds both on every push and pull request. Each push to `main` publishes a new release with `HomeStreamer.exe` and `HomeStreamer-Android.apk`.
 
 ### Signing the APK
 
-Without a signing key, CI signs with a throwaway debug key, so each new build has to be installed fresh (uninstall first). To keep updates installable over the old version, create a key once and add it as repository secrets:
-
-```sh
-keytool -genkeypair -v -keystore release.jks -alias homestreamer -keyalg RSA -keysize 2048 -validity 10000
-base64 -w0 release.jks   # paste into the secret SIGNING_KEYSTORE_B64
-```
-
-Secrets: `SIGNING_KEYSTORE_B64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS` (`homestreamer`), `SIGNING_KEY_PASSWORD`.
+Releases are signed with a permanent key stored in the repository's Actions secrets, so new versions install over the old one. The secrets are `SIGNING_KEYSTORE_B64` (the `.jks` file in base64), `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS` and `SIGNING_KEY_PASSWORD`. Keep a private backup of the key: if it's lost, users must uninstall before installing a build signed with a new one. Without the secrets, CI falls back to a throwaway debug key.
 
 ## Server API
 
@@ -89,6 +86,6 @@ Secrets: `SIGNING_KEYSTORE_B64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS` (
 | `GET /api/video/<id>` | One video with its subtitle files |
 | `GET /stream/<id>` | The video file, with HTTP range support |
 | `GET /subs/<id>` | A subtitle file as UTF-8 SRT (`?format=vtt` for WebVTT) |
-| UDP `47820` | Answers `HOMESTREAMER_DISCOVER` broadcasts so the TV finds the PC |
+| UDP `47820` | Answers `HOMESTREAMER_DISCOVER` broadcasts so the app finds the PC |
 
 The server only serves files inside the shared folders and is meant for your home network. Don't forward its port to the internet.

@@ -67,11 +67,11 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon assembleRelease
-          mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk ../dist/HomeStreamerTV.apk
+          mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk ../dist/HomeStreamer-Android.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: HomeStreamerTV-apk
-          path: dist/HomeStreamerTV.apk
+          name: HomeStreamer-Android-apk
+          path: dist/HomeStreamer-Android.apk
 
   release:
     name: GitHub release
@@ -88,7 +88,7 @@ jobs:
         with:
           files: |
             dist/HomeStreamer.exe
-            dist/HomeStreamerTV.apk
+            dist/HomeStreamer-Android.apk
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.1.{0}', github.run_number) }}
           name: Home Streamer ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number) }}
           target_commitish: ${{ github.sha }}

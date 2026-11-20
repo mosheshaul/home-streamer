@@ -40,7 +40,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -84,6 +86,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** Screen-edge padding: roomy on TVs, tighter on phones. */
+@Composable
+private fun edge(tv: Dp): Dp = if (LocalConfiguration.current.screenWidthDp < 600) 16.dp else tv
 
 private enum class Screen { Setup, Browse, Settings }
 
@@ -135,7 +141,7 @@ private fun SetupScreen(prefs: Prefs, onConnected: () -> Unit) {
         runCatching { firstFocus.requestFocus() }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 40.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = edge(64.dp), vertical = edge(40.dp))) {
         Text("Connect to your PC", fontSize = 32.sp)
         Spacer(Modifier.height(8.dp))
         Text(
@@ -173,7 +179,7 @@ private fun SetupScreen(prefs: Prefs, onConnected: () -> Unit) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { if (manual.isNotBlank()) connect(Api.normalize(manual), null) }),
                 modifier = Modifier
-                    .width(360.dp)
+                    .width(if (LocalConfiguration.current.screenWidthDp < 600) 180.dp else 360.dp)
                     .border(BorderStroke(2.dp, Color(0xFF5F6368)), RoundedCornerShape(8.dp))
                     .padding(horizontal = 14.dp, vertical = 10.dp)
                     .then(if (found.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier),
@@ -239,7 +245,7 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 28.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = edge(48.dp), vertical = edge(28.dp))) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
                 titles.joinToString("  ›  "),
@@ -346,7 +352,7 @@ private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChangeServer: () 
     LaunchedEffect(Unit) { runCatching { firstFocus.requestFocus() } }
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 32.dp),
+        Modifier.fillMaxSize().padding(horizontal = edge(64.dp), vertical = edge(32.dp)),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         item { Text("Settings", fontSize = 30.sp); Spacer(Modifier.height(16.dp)) }

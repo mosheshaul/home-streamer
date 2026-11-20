@@ -27,6 +27,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import io.github.mosheshaul.homestreamer.R
 import io.github.mosheshaul.homestreamer.data.Api
 import io.github.mosheshaul.homestreamer.data.Item
@@ -55,6 +58,7 @@ class PlayerActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_player)
+        hideSystemBars()
         prefs = Prefs(this)
         item = Item.fromJson(JSONObject(intent.getStringExtra(EXTRA_ITEM)!!))
         api = Api(intent.getStringExtra(EXTRA_SERVER)!!)
@@ -125,6 +129,20 @@ class PlayerActivity : Activity() {
         } else {
             startPlayback(p)
         }
+    }
+
+    /** Full screen on phones and tablets: hide the status and navigation bars. */
+    private fun hideSystemBars() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemBars()
     }
 
     private fun startPlayback(p: ExoPlayer) {
