@@ -17,11 +17,16 @@ import (
 //go:embed web/index.html
 var indexHTML []byte
 
+//go:embed web/hls.min.js
+var hlsJS []byte
+
 type Server struct {
 	cfg *Config
 	lib *Library
 	ff  *FFmpeg // nil when FFmpeg isn't installed
 	hls *sessions
+
+	progress *ProgressStore
 }
 
 func (s *Server) routes() http.Handler {
@@ -30,6 +35,22 @@ func (s *Server) routes() http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(indexHTML)
 	})
+	mux.HandleFunc("GET /hls.min.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "max-age=86400")
+		w.Write(hlsJS)
+	})
+	mux.HandleFunc("GET /manifest.webmanifest", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/manifest+json")
+		w.Write([]byte(`{"name":"Home Streamer","short_name":"Home Streamer","start_url":"/","display":"standalone","background_color":"#0f1318","theme_color":"#0f1318","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml"}]}`))
+	})
+	mux.HandleFunc("GET /icon.svg", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><rect width="108" height="108" rx="20" fill="#1A73E8"/><path d="M42 34L76 54L42 74Z" fill="#fff"/></svg>`))
+	})
+	mux.HandleFunc("GET /api/progress", s.progress.handleList)
+	mux.HandleFunc("PUT /api/progress/{id}", s.progress.handlePut)
+	mux.HandleFunc("DELETE /api/progress/{id}", s.progress.handleDelete)
 	mux.HandleFunc("GET /api/info", s.handleInfo)
 	mux.HandleFunc("GET /api/browse", s.handleBrowse)
 	mux.HandleFunc("GET /api/video/{id}", s.handleVideo)
@@ -261,6 +282,11 @@ func (s *Server) handleEmbeddedSub(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(s.ff.SubPath(abs, idx))
 	if err != nil {
 		http.Error(w, "subtitles not ready yet", http.StatusNotFound)
+		return
+	}
+	if r.URL.Query().Get("format") == "vtt" {
+		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+		w.Write([]byte(srtToVTT(decodeText(data))))
 		return
 	}
 	w.Header().Set("Content-Type", "application/x-subrip; charset=utf-8")

@@ -66,7 +66,7 @@ func main() {
 		log.Printf("Sharing folder: %s", r.Path)
 	}
 
-	srv := &Server{cfg: cfg, lib: lib}
+	srv := &Server{cfg: cfg, lib: lib, progress: NewProgressStore(filepath.Join(filepath.Dir(*configPath), "progress.json"))}
 	if ff := findFFmpeg(cfg); ff != nil {
 		srv.ff = ff
 		srv.hls = newSessions(ff)

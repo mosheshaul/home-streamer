@@ -3,67 +3,560 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Home Streamer server</title>
+<title>Home Streamer</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0f1318">
 <style>
-  :root { color-scheme: dark; --bg:#111418; --card:#1c2128; --fg:#e8eaed; --muted:#9aa0a6; --accent:#8ab4f8; }
-  body { margin:0; font:16px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
-  header { padding:16px 20px; border-bottom:1px solid #2a2f36; display:flex; gap:12px; align-items:center; }
-  header h1 { font-size:18px; margin:0; }
-  #crumb { color:var(--muted); }
-  main { padding:16px 20px; max-width:1000px; }
-  ul { list-style:none; padding:0; margin:0; display:grid; gap:6px; }
-  li a { display:block; padding:10px 14px; background:var(--card); border-radius:8px; color:var(--fg); text-decoration:none; }
-  li a:hover { outline:2px solid var(--accent); }
-  .meta { color:var(--muted); font-size:13px; }
-  video { width:100%; max-height:70vh; background:#000; border-radius:8px; margin-bottom:12px; }
-  button { background:var(--card); color:var(--fg); border:1px solid #333; border-radius:6px; padding:6px 12px; cursor:pointer; }
+  :root {
+    color-scheme: dark;
+    --bg: #0f1318; --card: #1a1f26; --card2: #232a33; --fg: #e8eaed; --muted: #9aa0a6;
+    --accent: #8ab4f8; --error: #f28b82; --sub-size: 1;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font: 16px/1.45 "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+  button { font: inherit; color: var(--fg); background: var(--card2); border: 1px solid #3a424d; border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #0b1a2e; border-color: var(--accent); font-weight: 600; }
+  select { font: inherit; color: var(--fg); background: var(--card2); border: 1px solid #3a424d; border-radius: 8px; padding: 6px 10px; max-width: 220px; }
+  .muted { color: var(--muted); }
+
+  /* ---------- library ---------- */
+  #library header { position: sticky; top: 0; z-index: 2; background: var(--bg); display: flex; align-items: center; gap: 12px; padding: 14px 24px; border-bottom: 1px solid #222831; }
+  #crumbs { flex: 1; min-width: 0; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #crumbs a { color: var(--fg); text-decoration: none; }
+  #crumbs a:hover { color: var(--accent); }
+  #crumbs .sep { color: var(--muted); margin: 0 8px; }
+  main { padding: 18px 24px 48px; max-width: 1200px; }
+  h2 { font-size: 15px; font-weight: 600; color: var(--muted); margin: 6px 0 10px; }
+  #recentRow { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 18px; }
+  .recent { position: relative; flex: 0 0 240px; height: 92px; background: var(--card); border-radius: 10px; padding: 12px; cursor: pointer; display: flex; flex-direction: column; border: 2px solid transparent; }
+  .recent:hover { border-color: var(--accent); }
+  .recent .name { flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .bar { height: 4px; background: #ffffff33; border-radius: 2px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--accent); }
+  .recent .remove { position: absolute; top: 6px; right: 6px; padding: 0 8px; border-radius: 6px; font-size: 14px; line-height: 22px; opacity: 0; }
+  .recent:hover .remove, .recent .remove:focus { opacity: 1; }
+  #list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+  #list li { display: flex; gap: 14px; align-items: center; background: var(--card); border-radius: 10px; padding: 11px 16px; cursor: pointer; border: 2px solid transparent; }
+  #list li:hover, #list li:focus { border-color: var(--accent); outline: none; }
+  #list .icon { font-size: 22px; }
+  #list .title { overflow-wrap: anywhere; }
+  #list .meta { font-size: 13px; color: var(--muted); }
+  .notice { padding: 14px 16px; background: var(--card); border-radius: 10px; }
+  .notice.err { color: var(--error); }
+
+  /* ---------- dialogs ---------- */
+  .dialog { position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+  .dialog[hidden] { display: none; }
+  .panel { background: var(--card); border-radius: 14px; padding: 20px 22px; width: min(520px, 100%); max-height: 90vh; overflow: auto; }
+  .panel h3 { margin: 0 0 12px; font-size: 20px; }
+  .panel label { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; cursor: pointer; }
+  .panel fieldset { border: 0; padding: 0; margin: 0 0 14px; }
+  .panel legend { color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .panel .small { font-size: 13px; color: var(--muted); }
+  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+
+  /* ---------- player ---------- */
+  #stage { position: fixed; inset: 0; background: #000; z-index: 10; }
+  #stage[hidden] { display: none; }
+  #video { width: 100%; height: 100%; background: #000; }
+  #gestures { position: absolute; left: 0; right: 0; top: 0; bottom: 72px; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  #topbar { position: absolute; left: 0; right: 0; top: 0; display: flex; gap: 10px; align-items: center; padding: 12px 16px; background: linear-gradient(#000c, #0000); transition: opacity .3s; }
+  #topbar .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 18px; }
+  #stage.idle #topbar { opacity: 0; pointer-events: none; }
+  #stage.idle { cursor: none; }
+  #hint { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); background: #000b; padding: 8px 18px; border-radius: 20px; font-weight: 700; font-size: 18px; pointer-events: none; }
+  #status { position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); background: #000b; padding: 6px 14px; border-radius: 14px; font-size: 14px; pointer-events: none; max-width: 90%; text-align: center; }
+  video::cue { font-size: calc(var(--sub-size) * 3.6vh); background: transparent; color: #fff; font-weight: 600;
+    text-shadow: 0 0 3px #000, 0 0 3px #000, 1px 1px 2px #000, -1px -1px 2px #000; }
+  @media (max-width: 600px) {
+    #library header, main { padding-left: 16px; padding-right: 16px; }
+    select { max-width: 140px; }
+  }
 </style>
 </head>
 <body>
-<header><h1>Home Streamer server</h1><span id="crumb"></span></header>
-<main>
-  <p class="meta">This page is for testing from the PC. Watch on the TV with the Home Streamer. Browsers can't play every MKV, but the TV app can.</p>
-  <div id="player" hidden><video id="video" controls crossorigin="anonymous"></video><button id="close">Close player</button><p id="subinfo" class="meta"></p></div>
-  <ul id="list"></ul>
-</main>
+<div id="library">
+  <header>
+    <div id="crumbs"></div>
+    <button id="settingsBtn">Settings</button>
+  </header>
+  <main>
+    <section id="recentSection" hidden>
+      <h2>Continue watching</h2>
+      <div id="recentRow"></div>
+    </section>
+    <ul id="list"></ul>
+  </main>
+</div>
+
+<div id="stage" hidden>
+  <video id="video" controls controlslist="nofullscreen nodownload noremoteplayback" disablepictureinpicture playsinline crossorigin="anonymous"></video>
+  <div id="gestures" title="Click: play/pause · Double-click right/left: ±15 s · Hold: 2× speed"></div>
+  <div id="topbar">
+    <button id="backBtn" title="Back (Esc)">←</button>
+    <div class="title" id="playTitle"></div>
+    <select id="subSelect" title="Subtitles"></select>
+    <button id="fsBtn" title="Full screen (F)">⛶</button>
+  </div>
+  <div id="hint" hidden></div>
+  <div id="status" hidden></div>
+</div>
+
+<div class="dialog" id="resumeDlg" hidden>
+  <div class="panel">
+    <h3 id="resumeTitle"></h3>
+    <div class="actions">
+      <button id="restartBtn">Start from the beginning</button>
+      <button id="resumeBtn" class="primary"></button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog" id="msgDlg" hidden>
+  <div class="panel">
+    <h3 id="msgTitle"></h3>
+    <p id="msgText" style="white-space:pre-line"></p>
+    <div class="actions"><button id="msgOk" class="primary">OK</button></div>
+  </div>
+</div>
+
+<div class="dialog" id="settingsDlg" hidden>
+  <div class="panel">
+    <h3>Settings</h3>
+    <fieldset id="qualitySet"><legend>Video quality</legend></fieldset>
+    <fieldset id="langSet"><legend>Subtitle language</legend></fieldset>
+    <fieldset id="sizeSet"><legend>Subtitle size</legend></fieldset>
+    <p class="small" id="serverInfo"></p>
+    <div class="actions"><button class="primary" id="settingsDone">Done</button></div>
+  </div>
+</div>
+
+<script src="/hls.min.js"></script>
 <script>
-const list = document.getElementById('list');
-const crumb = document.getElementById('crumb');
-const video = document.getElementById('video');
-const player = document.getElementById('player');
-function fmtSize(b){ if(!b) return ''; const g=b/1073741824; return g>=1? g.toFixed(2)+' GB' : (b/1048576).toFixed(0)+' MB'; }
-function el(tag, props, ...kids){ const e=document.createElement(tag); Object.assign(e, props||{}); kids.forEach(k=>e.append(k)); return e; }
-async function browse(id){
-  const res = await fetch('/api/browse?id=' + encodeURIComponent(id||''));
-  if(!res.ok){ list.replaceChildren(el('li',{textContent:'Error: '+res.status})); return; }
-  const data = await res.json();
-  crumb.textContent = data.title;
-  const items = [];
-  if (data.id) items.push(el('li',{}, el('a',{href:'#', textContent:'⬆ Back', onclick:e=>{e.preventDefault(); browse(data.parentId||'');}})));
-  for (const it of data.items){
-    if (it.type === 'folder') {
-      items.push(el('li',{}, el('a',{href:'#', textContent:'📁 '+it.name, onclick:e=>{e.preventDefault(); browse(it.id);}})));
-    } else {
-      const subs = (it.subtitles||[]).map(s=>s.label).join(', ');
-      const a = el('a',{href:'#', onclick:e=>{e.preventDefault(); play(it);}}, '🎬 '+it.name, el('div',{className:'meta', textContent:[fmtSize(it.size), subs && ('Subtitles: '+subs)].filter(Boolean).join(' · ')}));
-      items.push(el('li',{}, a));
-    }
+"use strict";
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('hs.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('hs.' + k, JSON.stringify(v)); } catch {} },
+};
+const settings = {
+  get quality() { return store.get('quality', 'auto'); },
+  get subLang() { return store.get('subLang', null); },
+  get subSize() { return store.get('subSize', 1); },
+};
+let serverInfo = { name: 'PC', transcode: false };
+
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e[k] = v;
   }
-  if (!data.items.length) items.push(el('li',{className:'meta', textContent:'No videos or folders here.'}));
-  list.replaceChildren(...items);
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
 }
-function play(it){
-  video.replaceChildren();
-  video.src = it.streamUrl;
-  (it.subtitles||[]).forEach((s,i)=>{
-    video.append(el('track',{kind:'subtitles', label:s.label, srclang:s.language||'', src:s.url+'?format=vtt', default:i===0}));
+function fmtTime(s) {
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
+}
+async function getJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`${r.status}`);
+  return r.json();
+}
+function showMessage(title, text, onOk) {
+  $('msgTitle').textContent = title; $('msgText').textContent = text; $('msgDlg').hidden = false;
+  $('msgOk').onclick = () => { $('msgDlg').hidden = true; onOk && onOk(); };
+  $('msgOk').focus();
+}
+
+// ================= Library =================
+let stack = [{ id: '', title: 'Library' }];
+
+async function loadRecent() {
+  let list = [];
+  try { list = await getJSON('/api/progress'); } catch {}
+  const row = $('recentRow');
+  row.replaceChildren();
+  $('recentSection').hidden = stack.length > 1 || !list.length;
+  for (const p of list) {
+    let item; try { item = typeof p.item === 'string' ? JSON.parse(p.item) : p.item; } catch { continue; }
+    if (!item || !item.id) continue;
+    const pct = p.duration ? Math.min(100, 100 * p.position / p.duration) : 0;
+    const card = el('div', { class: 'recent', tabIndex: 0, title: `${item.name} · ${fmtTime(p.position)}`,
+      onclick: () => play(item), onkeydown: e => { if (e.key === 'Enter') play(item); } },
+      el('div', { class: 'name', textContent: item.name }),
+      el('div', { class: 'bar' }, el('div', { style: `width:${Math.max(2, pct)}%` })),
+      el('button', { class: 'remove', textContent: '✕', title: 'Remove from Continue watching',
+        onclick: async e => { e.stopPropagation(); await fetch('/api/progress/' + item.id, { method: 'DELETE' }); loadRecent(); } }));
+    row.append(card);
+  }
+}
+
+async function browse() {
+  const cur = stack[stack.length - 1];
+  const crumbs = $('crumbs');
+  crumbs.replaceChildren();
+  stack.forEach((s, i) => {
+    if (i) crumbs.append(el('span', { class: 'sep', textContent: '›' }));
+    crumbs.append(i === stack.length - 1 ? el('span', { textContent: s.title })
+      : el('a', { href: '#', textContent: s.title, onclick: e => { e.preventDefault(); stack = stack.slice(0, i + 1); browse(); } }));
   });
-  document.getElementById('subinfo').textContent = it.subtitles?.length ? 'Sidecar subtitles found: '+it.subtitles.length : 'No sidecar subtitle files (embedded subtitles show only in the TV app).';
-  player.hidden = false; video.play().catch(()=>{});
-  window.scrollTo(0,0);
+  const list = $('list');
+  list.replaceChildren(el('li', { class: 'notice', textContent: 'Loading…' }));
+  loadRecent();
+  let data;
+  try { data = await getJSON('/api/browse?id=' + encodeURIComponent(cur.id)); }
+  catch { list.replaceChildren(el('li', { class: 'notice err', textContent: `Couldn't load from ${serverInfo.name}. Is HomeStreamer running on the PC?` })); return; }
+  if (stack.length === 1) stack[0].title = serverInfo.name || data.title || 'Library';
+  crumbs.firstChild && (crumbs.firstChild.textContent = stack[0].title);
+  const items = [];
+  for (const it of data.items) {
+    const meta = [];
+    if (it.type === 'video') {
+      if (it.size) meta.push((it.size / 1073741824).toFixed(1) + ' GB');
+      if (it.subtitles?.length) meta.push('Subtitle files: ' + it.subtitles.map(s => s.label.split(' ·')[0]).join(', '));
+    }
+    const open = () => it.type === 'folder' ? (stack.push({ id: it.id, title: it.name }), browse()) : play(it);
+    items.push(el('li', { tabIndex: 0, onclick: open, onkeydown: e => { if (e.key === 'Enter') open(); } },
+      el('span', { class: 'icon', textContent: it.type === 'folder' ? '📁' : '🎬' }),
+      el('div', {}, el('div', { class: 'title', textContent: it.name }), meta.length ? el('div', { class: 'meta', textContent: meta.join('  ·  ') }) : null)));
+  }
+  if (!items.length) items.push(el('li', { class: 'notice', textContent: 'No videos here.' }));
+  list.replaceChildren(...items);
+  window.scrollTo(0, 0);
 }
-document.getElementById('close').onclick = ()=>{ video.pause(); video.removeAttribute('src'); video.load(); player.hidden = true; };
-browse('');
+
+// ================= Settings =================
+const qualityChoices = [
+  ['auto', 'Automatic', 'Plays the original file when this browser can, and converts on the PC when it can’t.'],
+  ['original', 'Always the original file', 'Some MKV, 4K, HDR or AVI files may not play, or play without sound.'],
+  ['1080', 'Convert to 1080p', 'About 8 Mb/s.'],
+  ['720', 'Convert to 720p', 'About 3 Mb/s, for slow connections.'],
+];
+const langChoices = [[null, 'Use the video’s default'], ['off', 'Off'], ['he', 'Hebrew'], ['en', 'English'], ['ar', 'Arabic'], ['ru', 'Russian'], ['fr', 'French'], ['es', 'Spanish']];
+const sizeChoices = [[0.8, 'Small'], [1, 'Medium'], [1.25, 'Large'], [1.5, 'Extra large']];
+const langNames = { he: 'Hebrew', en: 'English', ar: 'Arabic', ru: 'Russian', fr: 'French', es: 'Spanish', de: 'German', it: 'Italian' };
+
+function radio(name, value, checked, label, small, onchange) {
+  const input = el('input', { type: 'radio', name, checked, onchange: () => onchange(value) });
+  return el('label', {}, input, el('div', {}, label, small ? el('div', { class: 'small', textContent: small }) : null));
+}
+function openSettings() {
+  const q = $('qualitySet'), l = $('langSet'), s = $('sizeSet');
+  q.replaceChildren(q.firstElementChild); l.replaceChildren(l.firstElementChild); s.replaceChildren(s.firstElementChild);
+  for (const [v, label, small] of qualityChoices) q.append(radio('q', v, settings.quality === v, label, small, v => store.set('quality', v)));
+  if (!serverInfo.transcode) q.append(el('p', { class: 'small', textContent: 'Conversion needs FFmpeg on the PC: run  winget install Gyan.FFmpeg  there, then restart HomeStreamer.' }));
+  for (const [v, label] of langChoices) l.append(radio('l', v, settings.subLang === v, label, null, v => store.set('subLang', v)));
+  for (const [v, label] of sizeChoices) s.append(radio('s', v, settings.subSize === v, label, null, v => { store.set('subSize', v); applySubSize(); }));
+  $('serverInfo').textContent = `Connected to ${serverInfo.name} (${location.host}). Continue watching is saved on the PC.`;
+  $('settingsDlg').hidden = false;
+}
+function applySubSize() { document.documentElement.style.setProperty('--sub-size', settings.subSize); }
+$('settingsBtn').onclick = openSettings;
+$('settingsDone').onclick = () => { $('settingsDlg').hidden = true; };
+
+// ================= Player =================
+const video = $('video');
+let current = null;      // the video item
+let media = null;        // /api/media info
+let converting = false;
+let triedConverting = false;
+let hls = null;
+let saveTimer = null;
+let subsPoll = null;
+
+const browserAudio = { aac: true, mp3: true, opus: true, vorbis: true, flac: true, pcm_s16le: true };
+function canPlayVideoCodec(c) {
+  const t = {
+    h264: 'video/mp4; codecs="avc1.640028"',
+    hevc: 'video/mp4; codecs="hvc1.1.6.L120.90"',
+    av1: 'video/mp4; codecs="av01.0.08M.08"',
+    vp9: 'video/webm; codecs="vp9"',
+    vp8: 'video/webm; codecs="vp8"',
+  }[c];
+  return !!t && (window.MediaSource?.isTypeSupported?.(t) || video.canPlayType(t) !== '');
+}
+function canPlayAudioCodec(c) {
+  if (browserAudio[c]) return true;
+  if (c === 'ac3') return video.canPlayType('audio/mp4; codecs="ac-3"') !== '';
+  if (c === 'eac3') return video.canPlayType('audio/mp4; codecs="ec-3"') !== '';
+  return false;
+}
+function isTailscaleHost() {
+  const p = location.hostname.split('.').map(Number);
+  return p.length === 4 && p[0] === 100 && p[1] >= 64 && p[1] <= 127;
+}
+function shouldConvert(item, m) {
+  if (!m || !m.canTranscode) return false;
+  const q = settings.quality;
+  if (q === 'original') return false;
+  if (q === '1080' || q === '720') return true;
+  const ext = (item.streamUrl && item.name) ? (item.mimeType || '') : '';
+  if (/msvideo|x-ms-wmv|mpeg$|x-flv|mp2t/.test(ext)) return true;
+  if (!canPlayVideoCodec(m.videoCodec)) return true;
+  const audio = m.audio?.find(a => a.default) || m.audio?.[0];
+  if (audio && !canPlayAudioCodec(audio.codec)) return true;
+  if (isTailscaleHost() && m.bitrate > 20e6) return true;
+  return false;
+}
+
+async function play(item) {
+  current = item; media = null; converting = false; triedConverting = false;
+  $('playTitle').textContent = item.name;
+  $('stage').hidden = false; $('library').hidden = true;
+  document.title = item.name + ' · Home Streamer';
+  setStatus('Loading…');
+  try { media = await getJSON('/api/media/' + item.id); } catch {}
+  converting = shouldConvert(item, media);
+  let resume = 0;
+  try { const list = await getJSON('/api/progress'); resume = list.find(p => p.id === item.id)?.position || 0; } catch {}
+  setStatus(null);
+  if (resume > 0) {
+    $('resumeTitle').textContent = item.name;
+    $('resumeBtn').textContent = 'Resume from ' + fmtTime(resume);
+    $('resumeDlg').hidden = false;
+    $('resumeBtn').focus();
+    $('resumeBtn').onclick = () => { $('resumeDlg').hidden = true; load(resume); };
+    $('restartBtn').onclick = () => { $('resumeDlg').hidden = true; load(0); };
+  } else load(0);
+  clearInterval(saveTimer);
+  saveTimer = setInterval(saveProgress, 10000);
+  poke();
+}
+
+function quality() {
+  const q = settings.quality;
+  if (q === '720') return { h: 720, br: 3000 };
+  if (q === '1080') return { h: 1080, br: 8000 };
+  return isTailscaleHost() ? { h: 1080, br: 6000 } : { h: 1080, br: 8000 };
+}
+
+function load(startAt) {
+  stopStream();
+  const q = quality();
+  const audio = media?.audio?.findIndex(a => a.default);
+  if (converting) {
+    const url = `/hls/${current.id}/index.m3u8?h=${q.h}&br=${q.br}&a=${audio > 0 ? audio : 0}`;
+    if (window.Hls && Hls.isSupported()) {
+      hls = new Hls({ maxBufferLength: 30, startPosition: startAt });
+      hls.on(Hls.Events.ERROR, (_, d) => {
+        if (d.fatal) showMessage(current.name, 'The PC couldn’t convert this video. Check the HomeStreamer window on the PC for details.', closePlayer);
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    } else {
+      video.src = url; // Safari plays HLS natively
+      video.addEventListener('loadedmetadata', () => { video.currentTime = startAt; }, { once: true });
+    }
+  } else {
+    video.src = current.streamUrl;
+    if (startAt) video.addEventListener('loadedmetadata', () => { video.currentTime = startAt; }, { once: true });
+  }
+  setupSubtitles();
+  video.play().catch(() => {});
+}
+
+function stopStream() {
+  if (hls) { hls.destroy(); hls = null; }
+  video.removeAttribute('src');
+  for (const t of [...video.querySelectorAll('track')]) t.remove();
+  video.load();
+}
+
+video.addEventListener('error', () => {
+  if (!current || converting) return;
+  const pos = video.currentTime || 0;
+  if (media?.canTranscode && !triedConverting) {
+    triedConverting = true; converting = true;
+    flashStatus('This browser can’t play this file directly. Converting it on the PC…', 4000);
+    load(pos);
+  } else if (!media?.canTranscode) {
+    showMessage(current.name, 'This browser can’t play this video.\n\nHomeStreamer can convert it on the PC if FFmpeg is installed there. On the PC, open Terminal and run:\nwinget install Gyan.FFmpeg\nThen restart HomeStreamer.', closePlayer);
+  }
+});
+video.addEventListener('ended', () => { saveProgress(true); closePlayer(); });
+video.addEventListener('pause', () => saveProgress());
+
+function saveProgress(ended) {
+  if (!current || !video.duration || !isFinite(video.duration)) return;
+  const position = ended ? video.duration : video.currentTime;
+  fetch('/api/progress/' + current.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position, duration: video.duration, item: current }), keepalive: true }).catch(() => {});
+}
+window.addEventListener('beforeunload', () => saveProgress());
+
+function closePlayer() {
+  saveProgress();
+  clearInterval(saveTimer); clearInterval(subsPoll);
+  stopStream();
+  current = null;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  $('stage').hidden = true; $('library').hidden = false;
+  document.title = 'Home Streamer';
+  loadRecent();
+}
+$('backBtn').onclick = closePlayer;
+
+// ---------- subtitles ----------
+let subTracks = []; // {key, label, lang, forced, isDefault, src}
+
+function setupSubtitles() {
+  clearInterval(subsPoll);
+  subTracks = (current.subtitles || []).map(s => ({ key: 'side:' + s.id, label: s.label.replace(' · SRT file', ' (file)'), lang: s.language || '', forced: !!s.forced, src: s.url + '?format=vtt' }));
+  // Browsers can't read subtitles inside MKV files, so use the copies the PC extracts.
+  const emb = (media?.embeddedSubtitles || []).filter(e => e.text && e.url);
+  const pending = emb.some(e => !e.ready);
+  for (const e of emb) if (e.ready) subTracks.push({ key: 'emb:' + e.index, label: e.label, lang: e.language || '', forced: !!e.forced, isDefault: !!e.default, src: e.url + '?format=vtt' });
+  for (const t of subTracks) {
+    t.el = el('track', { kind: 'subtitles', label: t.label, srclang: t.lang, src: t.src });
+    video.append(t.el);
+  }
+  fillSubSelect();
+  chooseInitialSubtitle();
+  if (pending) {
+    flashStatus('Preparing the video’s subtitles on the PC…', 4000);
+    subsPoll = setInterval(async () => {
+      let m; try { m = await getJSON('/api/media/' + current.id); } catch { return; }
+      const left = m.embeddedSubtitles.filter(e => e.text && !e.ready);
+      if (left.length) { if (m.subtitlesProgress >= 0) flashStatus(`Preparing subtitles: ${m.subtitlesProgress}%`, 3000); return; }
+      clearInterval(subsPoll);
+      media = m;
+      const selected = $('subSelect').value;
+      for (const t of [...video.querySelectorAll('track')]) t.remove();
+      setupSubtitles();
+      if (selected && selected !== 'off' && subTracks.some(t => t.key === selected)) selectSub(selected);
+      flashStatus('Subtitles are ready', 2500);
+    }, 5000);
+  }
+}
+
+function fillSubSelect() {
+  const sel = $('subSelect');
+  sel.replaceChildren(el('option', { value: 'off', textContent: 'Subtitles: off' }));
+  for (const t of subTracks) sel.append(el('option', { value: t.key, textContent: t.label }));
+  sel.hidden = !subTracks.length;
+}
+
+function chooseInitialSubtitle() {
+  const pref = settings.subLang;
+  let pick = null;
+  if (pref === 'off') pick = null;
+  else if (pref) pick = subTracks.find(t => t.lang === pref && !t.forced) || subTracks.find(t => t.lang === pref);
+  else pick = subTracks.find(t => t.isDefault && !t.forced) || null;
+  selectSub(pick ? pick.key : 'off');
+}
+
+function selectSub(key) {
+  $('subSelect').value = key;
+  for (const t of subTracks) t.el.track.mode = t.key === key ? 'showing' : 'disabled';
+}
+
+$('subSelect').addEventListener('change', e => {
+  const key = e.target.value;
+  selectSub(key);
+  const t = subTracks.find(t => t.key === key);
+  store.set('subLang', key === 'off' ? 'off' : (t?.lang || settings.subLang));
+});
+
+// ---------- gestures: click, double-click ±15 s, hold for 2× ----------
+const g = $('gestures');
+let holdTimer = null, boosting = false, rateBefore = 1, lastClick = 0, clickTimer = null;
+
+function showHint(text, sticky) {
+  const h = $('hint');
+  h.textContent = text; h.hidden = false;
+  clearTimeout(showHint.t);
+  if (!sticky) showHint.t = setTimeout(() => { h.hidden = true; }, 700);
+}
+function flashStatus(text, ms) {
+  const s = $('status'); s.textContent = text; s.hidden = false;
+  clearTimeout(flashStatus.t); flashStatus.t = setTimeout(() => { s.hidden = true; }, ms);
+}
+function setStatus(text) { const s = $('status'); s.textContent = text || ''; s.hidden = !text; }
+function skip(sec) {
+  const end = isFinite(video.duration) ? video.duration : Infinity;
+  video.currentTime = Math.min(end, Math.max(0, video.currentTime + sec));
+  showHint(sec > 0 ? `${sec} s  ▶▶` : `◀◀  ${-sec} s`);
+}
+function togglePlay() { video.paused ? video.play() : video.pause(); }
+
+g.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  poke();
+  holdTimer = setTimeout(() => {
+    holdTimer = null;
+    if (video.paused) return;
+    rateBefore = video.playbackRate; video.playbackRate = 2; boosting = true;
+    showHint('2×  ▶▶', true);
+  }, 450);
+});
+function endPress(e, cancelled) {
+  if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; if (!cancelled) handleClick(e); return; }
+  if (boosting) { boosting = false; video.playbackRate = rateBefore; showHint('1×'); }
+}
+g.addEventListener('pointerup', e => endPress(e, false));
+g.addEventListener('pointercancel', e => endPress(e, true));
+g.addEventListener('pointerleave', e => { if (boosting) endPress(e, true); });
+g.addEventListener('dblclick', e => e.preventDefault());
+g.addEventListener('contextmenu', e => e.preventDefault());
+
+function handleClick(e) {
+  const now = Date.now();
+  if (now - lastClick < 300) {
+    clearTimeout(clickTimer); lastClick = 0;
+    const r = g.getBoundingClientRect();
+    skip(e.clientX - r.left > r.width / 2 ? 15 : -15);
+  } else {
+    lastClick = now;
+    clickTimer = setTimeout(togglePlay, 300);
+  }
+}
+
+// Keyboard: Space/K play, ←/→ ±15 s, ↑/↓ volume, F full screen, Esc back.
+document.addEventListener('keydown', e => {
+  if ($('stage').hidden || !$('resumeDlg').hidden || !$('msgDlg').hidden) return;
+  if (e.target.tagName === 'SELECT') return;
+  poke();
+  switch (e.key) {
+    case ' ': case 'k': togglePlay(); break;
+    case 'ArrowRight': skip(15); break;
+    case 'ArrowLeft': skip(-15); break;
+    case 'ArrowUp': video.volume = Math.min(1, video.volume + 0.1); showHint(`Volume ${Math.round(video.volume * 100)}%`); break;
+    case 'ArrowDown': video.volume = Math.max(0, video.volume - 0.1); showHint(`Volume ${Math.round(video.volume * 100)}%`); break;
+    case 'f': case 'F': toggleFullscreen(); break;
+    case 'Escape': if (!document.fullscreenElement) closePlayer(); return;
+    default: return;
+  }
+  e.preventDefault(); e.stopPropagation();
+}, true);
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else $('stage').requestFullscreen().catch(() => {});
+}
+$('fsBtn').onclick = toggleFullscreen;
+
+// Hide the top bar and cursor after a few seconds without mouse movement.
+let idleTimer = null;
+function poke() {
+  $('stage').classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if (!video.paused) $('stage').classList.add('idle'); }, 3000);
+}
+$('stage').addEventListener('mousemove', poke);
+video.addEventListener('pause', poke);
+
+// ================= Start =================
+(async () => {
+  applySubSize();
+  try { serverInfo = await getJSON('/api/info'); } catch {}
+  stack[0].title = serverInfo.name || 'Library';
+  browse();
+})();
 </script>
 </body>
 </html>

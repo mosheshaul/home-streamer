@@ -92,6 +92,23 @@ TV remote controls in the player:
 | Left / Right (controls hidden) | Back 10 seconds / forward 30 seconds |
 | Back | Hide the controls, or leave the video |
 
+## Watch on a Windows laptop (or any computer)
+
+HomeStreamer has a full player built in, so a laptop needs nothing extra installed:
+
+1. On the laptop, open **Microsoft Edge** (or Chrome) and go to the PC's address, for example `http://192.168.1.20:8095`. If the laptop has Tailscale, use the PC's Tailscale address (`http://100.x.x.x:8095`) instead: it works both at home and away.
+2. To use it like an app, open Edge's menu **⋯ → Apps → Install this site as an app** (or **More tools → Pin to taskbar**).
+
+The browser player has the same subtitles (SRT files and the subtitles inside the video, Hebrew included), conversion on the PC for files the browser can't play (needs FFmpeg), and "Continue watching", which is saved on the PC.
+
+| Mouse / keyboard | Action |
+| --- | --- |
+| Click | Play / pause |
+| Double-click right / left side | Forward / back 15 seconds |
+| Hold the mouse button | Play at 2× speed until you let go |
+| Space, ← / →, ↑ / ↓ | Play/pause, ∓15 seconds, volume |
+| F / Esc | Full screen / back to the library |
+
 ## 4. Watch away from home (Tailscale)
 
 [Tailscale](https://tailscale.com) links your PC and your devices into a private, encrypted network. Nothing is opened on your router, and only devices signed in to your Tailscale account can reach the server.

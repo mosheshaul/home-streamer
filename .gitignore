@@ -1,3 +1,4 @@
 dist/
 *.exe
 server/config.json
+server/progress.json
