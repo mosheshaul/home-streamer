@@ -145,6 +145,8 @@ type MediaInfo struct {
 	Audio        []AudioTrack  `json:"audio"`
 	Subtitles    []EmbeddedSub `json:"embeddedSubtitles"`
 	CanTranscode bool          `json:"canTranscode"`
+	// SubsProgress is the extraction progress in percent while it runs, else -1.
+	SubsProgress int `json:"subtitlesProgress"`
 }
 
 type probeJSON struct {
@@ -276,8 +278,9 @@ func normalizeLang(l string) string {
 // file, so text subtitle tracks are extracted once to SRT files and cached.
 
 type subJob struct {
-	done chan struct{}
-	err  error
+	done     chan struct{}
+	err      error
+	progress float64 // 0..1, guarded by subJobsMu
 }
 
 var (
@@ -313,7 +316,7 @@ func (f *FFmpeg) SubsReady(abs string, mi *MediaInfo) bool {
 		go func() {
 			subSem <- struct{}{}
 			defer func() { <-subSem }()
-			job.err = f.extractSubs(abs, dir, text)
+			job.err = f.extractSubs(abs, dir, text, mi.Duration, job)
 			if job.err != nil {
 				log.Printf("subtitle extraction failed for %s: %v", filepath.Base(abs), job.err)
 			}
@@ -327,20 +330,54 @@ func (f *FFmpeg) SubsReady(abs string, mi *MediaInfo) bool {
 	return false
 }
 
-func (f *FFmpeg) extractSubs(abs, dir string, idx []int) error {
+// SubsProgress returns how far extraction is (0..1), or -1 if it isn't running.
+func (f *FFmpeg) SubsProgress(abs string) float64 {
+	subJobsMu.Lock()
+	defer subJobsMu.Unlock()
+	if j, ok := subJobs[f.subDir(abs)]; ok {
+		return j.progress
+	}
+	return -1
+}
+
+func (f *FFmpeg) extractSubs(abs, dir string, idx []int, duration float64, job *subJob) error {
 	tmp := dir + ".tmp"
 	os.RemoveAll(tmp)
 	if err := os.MkdirAll(tmp, 0o755); err != nil {
 		return err
 	}
-	args := []string{"-v", "error", "-y", "-i", abs}
+	// The whole file has to be read to find every subtitle, so this takes
+	// about as long as copying the file once.
+	args := []string{"-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats", "-i", abs}
 	for _, i := range idx {
 		args = append(args, "-map", fmt.Sprintf("0:s:%d", i), "-c:s", "srt", filepath.Join(tmp, fmt.Sprintf("%d.srt", i)))
 	}
 	start := time.Now()
-	if out, err := exec.Command(f.FFmpeg, args...).CombinedOutput(); err != nil {
+	log.Printf("Extracting %d subtitle tracks from %s…", len(idx), filepath.Base(abs))
+	cmd := exec.Command(f.FFmpeg, args...)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	sc := bufio.NewScanner(stdout)
+	for sc.Scan() {
+		line := sc.Text()
+		if v, ok := strings.CutPrefix(line, "out_time_us="); ok && duration > 0 {
+			if us, err := strconv.ParseFloat(v, 64); err == nil {
+				subJobsMu.Lock()
+				job.progress = math.Max(0, math.Min(0.99, us/1e6/duration))
+				subJobsMu.Unlock()
+			}
+		}
+	}
+	if err := cmd.Wait(); err != nil {
 		os.RemoveAll(tmp)
-		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	os.WriteFile(filepath.Join(tmp, "done"), nil, 0o644)
 	os.RemoveAll(dir)

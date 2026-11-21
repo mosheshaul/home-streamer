@@ -72,6 +72,7 @@ data class EmbeddedSubtitle(
     val label: String,
     val language: String?,
     val forced: Boolean,
+    val isDefault: Boolean,
     val text: Boolean,
     val ready: Boolean,
     val url: String?,
@@ -89,6 +90,8 @@ data class MediaInfo(
     val defaultAudio: Int,
     val embeddedSubtitles: List<EmbeddedSubtitle>,
     val canTranscode: Boolean,
+    /** Percent done while the PC extracts subtitles, or -1. */
+    val subtitlesProgress: Int,
 )
 
 /** Talks to the Home Streamer server on the PC. [baseUrl] looks like http://192.168.1.20:8095 */
@@ -138,12 +141,14 @@ class Api(val baseUrl: String) {
                     label = e.optString("label", "Subtitles"),
                     language = e.optString("language").ifEmpty { null },
                     forced = e.optBoolean("forced", false),
+                    isDefault = e.optBoolean("default", false),
                     text = e.optBoolean("text", false),
                     ready = e.optBoolean("ready", false),
                     url = e.optString("url").ifEmpty { null },
                 )
             },
             canTranscode = o.optBoolean("canTranscode", false),
+            subtitlesProgress = o.optInt("subtitlesProgress", -1),
         )
     }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -182,6 +183,10 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 	out := *mi
 	out.Subtitles = append([]EmbeddedSub(nil), mi.Subtitles...)
 	ready := s.ff.SubsReady(abs, mi)
+	out.SubsProgress = -1
+	if !ready {
+		out.SubsProgress = int(math.Max(0, s.ff.SubsProgress(abs)) * 100)
+	}
 	for i := range out.Subtitles {
 		if out.Subtitles[i].Text {
 			out.Subtitles[i].Ready = ready

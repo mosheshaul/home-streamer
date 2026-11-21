@@ -171,6 +171,10 @@ class PlayerActivity : Activity() {
             // Converted video has no subtitle tracks, so add the video's own
             // text subtitles as separate files (the PC extracts them once).
             var pending = false
+            // Keep the video's own default subtitle track on, as it would be
+            // when playing the original file, unless a language was chosen.
+            val defaultSub = if (prefs.subtitleLanguage == null)
+                m.embeddedSubtitles.firstOrNull { it.text && it.ready && it.isDefault && !it.forced } else null
             for (e in m.embeddedSubtitles) {
                 if (!e.text || e.url == null) continue
                 if (!e.ready) { pending = true; continue }
@@ -178,7 +182,10 @@ class PlayerActivity : Activity() {
                     .setMimeType(MimeTypes.APPLICATION_SUBRIP)
                     .setLanguage(e.language)
                     .setLabel(e.label)
-                    .setSelectionFlags(if (e.forced) C.SELECTION_FLAG_FORCED else 0)
+                    .setSelectionFlags(
+                        (if (e.forced) C.SELECTION_FLAG_FORCED else 0) or
+                            (if (e == defaultSub) C.SELECTION_FLAG_DEFAULT else 0)
+                    )
                     .setId("embedded:${e.index}")
                     .build()
             }
@@ -198,11 +205,22 @@ class PlayerActivity : Activity() {
     /** Poll until the PC finishes extracting subtitles, then add them. */
     private fun waitForEmbeddedSubs() {
         if (subsJob?.isActive == true) return
-        Toast.makeText(this, "Preparing the video's subtitles on the PC…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            this,
+            "Preparing the video's subtitles on the PC. On a big file this can take a few minutes.",
+            Toast.LENGTH_LONG,
+        ).show()
         subsJob = scope.launch {
-            repeat(120) {
+            repeat(240) { round ->
                 delay(5_000)
                 val m = runCatching { api.media(item.id) }.getOrNull() ?: return@repeat
+                if (round % 4 == 3 && m.subtitlesProgress in 0..99) {
+                    Toast.makeText(
+                        this@PlayerActivity,
+                        "Preparing the video's subtitles on the PC: ${m.subtitlesProgress}%",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
                 if (m.embeddedSubtitles.none { it.text && !it.ready }) {
                     media = m
                     val pos = player?.currentPosition ?: 0L
