@@ -15,6 +15,8 @@ Watch the videos on your Windows PC on an Android TV, phone or tablet.
   - **SRT files next to the video**: `Movie.srt`, `Movie.he.srt`, `Movie.heb.srt`, `Movie.en.forced.srt`, and so on. If a folder holds a single video, any `.srt` in it is used, and so are files in a `Subs` or `Subtitles` subfolder.
   - Old Hebrew subtitles saved as Windows-1255 (and other legacy encodings, or UTF-16) are converted, so they never show as gibberish. Languages are detected from the file name, or from the text itself when the name doesn't say.
   - The app remembers the subtitle language you last picked and selects it automatically next time. You can also set the language and text size in **Settings**.
+- **Readable names:** release names like `Heart.of.the.Beast.2026.2160p.WEB-DL.DDP5.1-GTM` show as "Heart of the Beast", and episodes as "S01E03".
+- **Hebrew titles:** Israeli films and shows show by their Hebrew name ("Lo.Kara.Clum.S01" shows as "לא קרה כלום – עונה 1"), looked up on TMDB. See [Optional: Hebrew titles](#optional-hebrew-titles).
 - Audio formats many TVs can't decode (DTS, TrueHD, and others) are handled by a bundled FFmpeg software decoder.
 
 ## 1. Set up the PC
@@ -55,6 +57,15 @@ Some files can't play on every device, for example 4K Dolby Vision on a phone, o
 2. Close and restart HomeStreamer. The window should say "FFmpeg found".
 
 HomeStreamer uses your graphics card's video encoder when it has one (NVIDIA, Intel or AMD), and the processor otherwise. You can also put `ffmpeg.exe` and `ffprobe.exe` next to `HomeStreamer.exe`, or set `"ffmpeg": "C:\\path\\to\\ffmpeg.exe"` in `config.json`.
+
+### Optional: Hebrew titles
+
+Names are looked up on TMDB (themoviedb.org), which needs a free key:
+
+1. Make a free account at [themoviedb.org](https://www.themoviedb.org/signup), then open **Settings → API** and request an API key (choose "Personal" use).
+2. Open the web player (`http://<PC address>:8095/`) → **Settings → Hebrew titles**, paste the key and press **Save**.
+
+The PC checks each title once and remembers the answer in `titles.json` next to `config.json`; the key is saved in `config.json` as `"tmdbKey"`. Only titles whose original language is Hebrew are changed. Hebrew names show on every device, usually within a minute; open the folder again to see them.
 
 In the app, **Settings → Video quality** chooses between Automatic (the default), always the original file, or always converting to 1080p or 720p.
 
@@ -143,6 +154,8 @@ Releases are signed with a permanent key stored in the repository's Actions secr
 | `GET /api/video/<id>` | One video with its subtitle files |
 | `GET /stream/<id>` | The video file, with HTTP range support |
 | `GET /subs/<id>` | A subtitle file as UTF-8 SRT (`?format=vtt` for WebVTT) |
+| `GET /api/settings` | Whether Hebrew titles are on |
+| `PUT /api/settings/tmdb` | `{"key": "..."}` checks and saves a TMDB key |
 | `GET /api/media/<id>` | Streams inside a video (FFprobe), and whether it can be converted |
 | `GET /hls/<id>/index.m3u8?h=1080&br=8000&a=0` | The video converted to HLS (needs FFmpeg) |
 | `GET /esubs/<id>/<n>` | A subtitle track extracted from inside the video, as SRT |

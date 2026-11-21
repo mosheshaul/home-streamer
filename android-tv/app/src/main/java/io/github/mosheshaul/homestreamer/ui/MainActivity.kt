@@ -266,25 +266,8 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
     var reload by remember { mutableIntStateOf(0) }
     var recent by remember { mutableStateOf(prefs.recent()) }
     var toRemove by remember { mutableStateOf<Item?>(null) }
-    var toRename by remember { mutableStateOf<Item?>(null) }
     val scope = rememberCoroutineScope()
 
-    toRename?.let { target ->
-        RenameDialog(
-            item = target,
-            onDismiss = { toRename = null },
-            onSave = { newName ->
-                toRename = null
-                scope.launch {
-                    val ok = runCatching { server?.let { Api(it).rename(target.id, newName) } }.isSuccess
-                    if (ok) {
-                        if (titles.size > 1 && stack.last() == target.id) titles[titles.lastIndex] = newName.ifBlank { target.name }
-                        reload++
-                    }
-                }
-            },
-        )
-    }
     val firstFocus = remember { FocusRequester() }
     val current = stack.last()
 
@@ -392,13 +375,6 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
                 }
                 if (l.items.isEmpty()) {
                     item { Text("No videos here.", fontSize = 18.sp) }
-                } else if (stack.size == 1) {
-                    item {
-                        Text(
-                            if (isTv) "Hold OK on a folder or video to rename it" else "Press and hold a folder or video to rename it",
-                            fontSize = 13.sp, color = Muted,
-                        )
-                    }
                 }
                 items(l.items, key = { it.id }) { item ->
                     AppListItem(
@@ -406,7 +382,6 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
                         supporting = if (item.isFolder) null else describe(item, prefs),
                         leading = if (item.isFolder) "📁" else "🎬",
                         onClick = { open(item) },
-                        onLongClick = { toRename = item },
                         modifier = if (item == l.items.first()) Modifier.focusRequester(firstFocus) else Modifier,
                     )
                 }
@@ -567,43 +542,4 @@ private fun AwayAddressRow(prefs: Prefs) {
         AppButton("Save", onClick = { save() })
         status?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 14.sp, color = Muted) }
     }
-}
-
-@Composable
-private fun RenameDialog(item: Item, onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var text by remember { mutableStateOf(item.name) }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename") },
-        text = {
-            Column {
-                Text(
-                    "The new name shows on all your devices. The file on the PC isn't changed.",
-                    fontSize = 14.sp, color = Muted,
-                )
-                Spacer(Modifier.height(10.dp))
-                AppTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = "Name",
-                    onDone = { onSave(text) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                )
-                item.fileName?.let {
-                    Spacer(Modifier.height(8.dp))
-                    Text("File name: $it", fontSize = 12.sp, color = Muted)
-                }
-            }
-        },
-        confirmButton = { AppButton("Save", onClick = { onSave(text) }) },
-        dismissButton = {
-            Row {
-                AppButton("Automatic name", onClick = { onSave("") }, primary = false)
-                Spacer(Modifier.width(8.dp))
-                AppButton("Cancel", onClick = onDismiss, primary = false)
-            }
-        },
-    )
 }

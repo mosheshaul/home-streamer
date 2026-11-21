@@ -1,9 +1,12 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"golang.org/x/text/encoding/charmap"
 )
@@ -118,5 +121,51 @@ func TestCleanName(t *testing.T) {
 		if got := cleanName(in); got != want {
 			t.Errorf("cleanName(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestHebrewTitles(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("api_key") != "k" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Query().Get("query") {
+		case "Lo Kara Clum":
+			if r.URL.Path != "/search/tv" {
+				t.Errorf("show searched at %s", r.URL.Path)
+			}
+			w.Write([]byte(`{"results":[{"name":"לא קרה כלום","original_name":"לא קרה כלום","original_language":"he","first_air_date":"2023-01-01"}]}`))
+		case "The Matrix":
+			w.Write([]byte(`{"results":[{"media_type":"movie","title":"מטריקס","original_title":"The Matrix","original_language":"en","release_date":"1999-03-31"}]}`))
+		default:
+			w.Write([]byte(`{"results":[]}`))
+		}
+	}))
+	defer ts.Close()
+	tt := NewTitles(filepath.Join(t.TempDir(), "titles.json"), "k")
+	tt.baseURL = ts.URL
+	lib := &Library{Titles: tt}
+	for _, raw := range []string{"Lo.Kara.Clum.S01E03.1080p.WEB-DL", "The Matrix (1999) [1080p]"} {
+		lib.display(raw) // queues the lookup
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		tt.mu.Lock()
+		n := len(tt.m)
+		tt.mu.Unlock()
+		if n == 2 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := lib.display("Lo.Kara.Clum.S01E03.1080p.WEB-DL"); got != "לא קרה כלום – עונה 1 פרק 3" {
+		t.Errorf("Israeli show: got %q", got)
+	}
+	if got := lib.display("The Matrix (1999) [1080p]"); got != "The Matrix" {
+		t.Errorf("foreign film: got %q", got)
+	}
+	if err := tt.CheckKey("bad"); err == nil {
+		t.Error("bad key accepted")
 	}
 }

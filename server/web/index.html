@@ -45,9 +45,8 @@
   #list .title { overflow-wrap: anywhere; text-align: left; }
   #list .meta { font-size: 13px; color: var(--muted); }
   #list .grow { flex: 1; min-width: 0; }
-  #list .rename { opacity: 0; padding: 2px 10px; font-size: 14px; }
-  #list li:hover .rename, #list .rename:focus { opacity: 1; }
-  @media (hover: none) { #list .rename { opacity: .7; } }
+  #tmdbRow { display: flex; gap: 8px; margin: 6px 0; }
+  #tmdbRow input { flex: 1; min-width: 0; padding: 6px 8px; font: inherit; border-radius: 6px; border: 1px solid var(--muted); background: transparent; color: inherit; }
   .notice { padding: 14px 16px; background: var(--card); border-radius: 10px; }
   .notice.err { color: var(--error); }
 
@@ -133,6 +132,11 @@
     <fieldset id="qualitySet"><legend>Video quality</legend></fieldset>
     <fieldset id="langSet"><legend>Subtitle language</legend></fieldset>
     <fieldset id="sizeSet"><legend>Subtitle size</legend></fieldset>
+    <fieldset id="tmdbSet"><legend>Hebrew titles</legend>
+      <p class="small">Israeli films and shows are shown by their Hebrew names, looked up on TMDB (themoviedb.org). Get a free API key at themoviedb.org → Settings → API, and paste it here.</p>
+      <div id="tmdbRow"><input id="tmdbKey" placeholder="TMDB API key" autocomplete="off" spellcheck="false"><button id="tmdbSave">Save</button></div>
+      <p class="small" id="tmdbStatus"></p>
+    </fieldset>
     <p class="small" id="serverInfo"></p>
     <div class="actions"><button class="primary" id="settingsDone">Done</button></div>
   </div>
@@ -227,23 +231,11 @@ async function browse() {
     const open = () => it.type === 'folder' ? (stack.push({ id: it.id, title: it.name }), browse()) : play(it);
     items.push(el('li', { tabIndex: 0, onclick: open, onkeydown: e => { if (e.key === 'Enter') open(); } },
       el('span', { class: 'icon', textContent: it.type === 'folder' ? '📁' : '🎬' }),
-      el('div', { class: 'grow' }, el('div', { class: 'title', textContent: it.name, dir: 'auto' }), meta.length ? el('div', { class: 'meta', textContent: meta.join('  ·  ') }) : null),
-      el('button', { class: 'rename', textContent: '✎ Rename', title: it.fileName ? 'File name: ' + it.fileName : '',
-        onclick: e => { e.stopPropagation(); rename(it); } })));
+      el('div', { class: 'grow' }, el('div', { class: 'title', textContent: it.name, dir: 'auto' }), meta.length ? el('div', { class: 'meta', textContent: meta.join('  ·  ') }) : null)));
   }
   if (!items.length) items.push(el('li', { class: 'notice', textContent: 'No videos here.' }));
   list.replaceChildren(...items);
   window.scrollTo(0, 0);
-}
-
-// Custom names are saved on the PC, so every device shows them. The file isn't renamed.
-async function rename(it) {
-  const name = prompt(`New name for "${it.name}" (shown on all your devices; the file on the PC isn't changed).\nLeave it empty to go back to the automatic name.`, it.name);
-  if (name === null) return;
-  const opts = name.trim() ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) } : { method: 'DELETE' };
-  try { await fetch('/api/name/' + it.id, opts); } catch {}
-  const s = stack.find(x => x.id === it.id); if (s) s.title = name.trim() || it.name;
-  browse();
 }
 
 // ================= Settings =================
@@ -270,7 +262,21 @@ function openSettings() {
   for (const [v, label] of sizeChoices) s.append(radio('s', v, settings.subSize === v, label, null, v => { store.set('subSize', v); applySubSize(); }));
   $('serverInfo').textContent = `Connected to ${serverInfo.name} (${location.host}). Continue watching is saved on the PC.`;
   $('settingsDlg').hidden = false;
+  $('tmdbKey').value = '';
+  fetch('/api/settings').then(r => r.json()).then(st => {
+    $('tmdbStatus').textContent = st.hebrewTitles ? '✓ On. To change the key, paste a new one.' : 'Off until a key is added.';
+  }).catch(() => {});
 }
+$('tmdbSave').onclick = async () => {
+  const st = $('tmdbStatus');
+  st.textContent = 'Checking…';
+  try {
+    const r = await fetch('/api/settings/tmdb', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: $('tmdbKey').value.trim() }) });
+    if (!r.ok) { st.textContent = (await r.text()).trim(); return; }
+    $('tmdbKey').value = '';
+    st.textContent = '✓ Saved. Hebrew names appear as the PC looks them up, usually within a minute. Open a folder again to see them.';
+  } catch { st.textContent = 'Couldn’t reach the PC.'; }
+};
 function applySubSize() { document.documentElement.style.setProperty('--sub-size', settings.subSize); }
 $('settingsBtn').onclick = openSettings;
 $('settingsDone').onclick = () => { $('settingsDlg').hidden = true; };

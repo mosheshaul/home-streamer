@@ -29,6 +29,9 @@ type Config struct {
 	FFmpeg  string `json:"ffmpeg,omitempty"`
 	Encoder string `json:"encoder,omitempty"`
 	HWAccel string `json:"hwaccel,omitempty"`
+	// Optional: a free TMDB (themoviedb.org) key, used to show Israeli
+	// films and shows by their Hebrew names. Can be set in the web player.
+	TMDBKey string `json:"tmdbKey,omitempty"`
 }
 
 type multiFlag []string
@@ -60,7 +63,10 @@ func main() {
 	}
 
 	lib := NewLibrary(cfg.Folders)
-	lib.Names = NewNameStore(filepath.Join(filepath.Dir(*configPath), "names.json"))
+	lib.Titles = NewTitles(filepath.Join(filepath.Dir(*configPath), "titles.json"), cfg.TMDBKey)
+	if !lib.Titles.Enabled() {
+		log.Printf("Hebrew titles are off: add a TMDB key in the web player (Settings → Hebrew titles).")
+	}
 	if len(lib.Roots) == 0 {
 		log.Printf("WARNING: no usable video folders. Edit %s and restart.", *configPath)
 	}
@@ -68,14 +74,14 @@ func main() {
 		log.Printf("Sharing folder: %s", r.Path)
 	}
 
-	srv := &Server{cfg: cfg, lib: lib, progress: NewProgressStore(filepath.Join(filepath.Dir(*configPath), "progress.json"))}
+	srv := &Server{cfg: cfg, cfgPath: *configPath, lib: lib, progress: NewProgressStore(filepath.Join(filepath.Dir(*configPath), "progress.json"))}
 	srv.progress.nameOf = func(id string) (string, bool) {
 		_, rel, _, err := lib.Resolve(id)
 		if err != nil {
 			return "", false
 		}
 		base := path.Base(rel)
-		return lib.display(id, strings.TrimSuffix(base, path.Ext(base))), true
+		return lib.display(strings.TrimSuffix(base, path.Ext(base))), true
 	}
 	if ff := findFFmpeg(cfg); ff != nil {
 		srv.ff = ff

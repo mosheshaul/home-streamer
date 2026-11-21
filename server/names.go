@@ -1,17 +1,12 @@
 package main
 
 // Friendlier names: release names like "Heart.of.the.Beast.2026.2160p.WEB-DL.DDP5.1-GTM"
-// are shown as "Heart of the Beast", and any folder or video can be given a
-// custom name (for example in Hebrew) that every device sees.
+// are shown as "Heart of the Beast", and Israeli titles in Hebrew (metadata.go).
 
 import (
-	"encoding/json"
-	"io"
-	"net/http"
-	"os"
+	"fmt"
 	"regexp"
 	"strings"
-	"sync"
 )
 
 var (
@@ -23,64 +18,122 @@ var (
 	reJunk     = regexp.MustCompile(`(?i)^(\d{3,4}p|4k|uhd|hd|fhd|sd|web|web-?dl|webrip|web-?rip|bluray|blu-ray|bdrip|brrip|bdremux|remux|dvdrip|dvd|dvdscr|hdtv|hdrip|hdcam|cam|ts|tc|r5|repack|proper|real|rerip|extended|unrated|uncut|remastered|imax|dc|limited|internal|multi|dual|subs?|hebsub|heb|hebrew|eng|x264|x265|h264|h265|h\.264|h\.265|hevc|avc|xvid|divx|10bit|8bit|hdr|hdr10|hdr10\+|dv|dovi|sdr|ddp?\d?(\.\d)?|dd\+?\d?(\.\d)?|eac3|ac3|aac\d?(\.\d)?|dts(-?hd)?|truehd|atmos|flac|mp3|\d\.\d|5\.1|7\.1|2\.0|nf|amzn|dsnp|hmax|atvp|it|hulu|pcok|yts|yify|rarbg|complete|season|series)$`)
 )
 
-// cleanName turns a release-style file or folder name into a readable title.
-func cleanName(raw string) string {
+// ParsedName is a release name split into its useful parts.
+type ParsedName struct {
+	Title            string
+	Year             int
+	Season, Episode  int // 0 when absent
+	Episode2         int // for double episodes like S01E01-E02
+	HasSeason, HasEp bool
+}
+
+// parseName reads a release-style file or folder name.
+func parseName(raw string) ParsedName {
+	var pn ParsedName
 	s := reBrackets.ReplaceAllString(raw, " ")
-	// Dots and underscores separate words in release names; keep "5.1"-style
-	// numbers intact by splitting only on dots between letters/numbers groups.
 	s = strings.NewReplacer("_", " ").Replace(s)
 	words := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '.' })
-	// Join tokens like "DDP5" "1" back would be pointless: they are junk anyway.
-
 	var title []string
-	var suffix string
+	ended := false
 	for i, w := range words {
 		bare := strings.Trim(w, "-()")
 		if bare == "" {
 			continue
 		}
 		if m := reSeasonEp.FindStringSubmatch(bare); m != nil {
-			suffix = "S" + pad2(m[1]) + "E" + pad2(m[2])
-			if m[3] != "" {
-				suffix += "-E" + pad2(m[3])
-			}
+			pn.Season, pn.Episode, pn.HasSeason, pn.HasEp = atoi(m[1]), atoi(m[2]), true, true
+			pn.Episode2 = atoi(m[3])
 			break
 		}
 		if m := reXEp.FindStringSubmatch(bare); m != nil {
-			suffix = "S" + pad2(m[1]) + "E" + pad2(m[2])
+			pn.Season, pn.Episode, pn.HasSeason, pn.HasEp = atoi(m[1]), atoi(m[2]), true, true
 			break
 		}
 		if m := reSeason.FindStringSubmatch(bare); m != nil {
-			suffix = "Season " + strings.TrimLeft(m[1], "0")
+			pn.Season, pn.HasSeason = atoi(m[1]), true
 			break
 		}
 		if strings.EqualFold(bare, "season") && i+1 < len(words) {
 			if n := strings.Trim(words[i+1], "-()"); isAllDigits(n) {
-				suffix = "Season " + strings.TrimLeft(n, "0")
+				pn.Season, pn.HasSeason = atoi(n), true
 				break
 			}
 		}
 		// A year or a technical tag ends the title (but never as the first word,
 		// so films like "1917" or "2012" keep their name).
-		if len(title) > 0 && (reYear.MatchString(bare) || reJunk.MatchString(bare) || reJunk.MatchString(strings.SplitN(bare, "-", 2)[0])) {
-			break
+		if len(title) > 0 && reYear.MatchString(bare) {
+			if pn.Year == 0 {
+				pn.Year = atoi(strings.Trim(bare, "()"))
+			}
+			ended = true
+			continue // a season tag may still follow the year
 		}
-		title = append(title, w)
-	}
-	t := strings.Join(title, " ")
-	// "Name-GROUP" leftovers and stray separators.
-	t = strings.Trim(t, " -–()")
-	t = strings.Join(strings.Fields(t), " ")
-	if suffix != "" {
-		if t == "" {
-			return suffix
+		if len(title) > 0 && (reJunk.MatchString(bare) || reJunk.MatchString(strings.SplitN(bare, "-", 2)[0])) {
+			ended = true
+			continue
 		}
-		t += " " + suffix
+		if !ended {
+			title = append(title, w)
+		}
 	}
-	if t == "" {
-		return raw
+	t := strings.Trim(strings.Join(title, " "), " -–()")
+	pn.Title = strings.Join(strings.Fields(t), " ")
+	return pn
+}
+
+// suffix is the season/episode part, in English or Hebrew.
+func (pn ParsedName) suffix(hebrew bool) string {
+	switch {
+	case pn.HasEp && hebrew:
+		s := fmt.Sprintf("עונה %d פרק %d", pn.Season, pn.Episode)
+		if pn.Episode2 > 0 {
+			s += fmt.Sprintf("-%d", pn.Episode2)
+		}
+		return s
+	case pn.HasEp:
+		s := "S" + pad2(fmt.Sprint(pn.Season)) + "E" + pad2(fmt.Sprint(pn.Episode))
+		if pn.Episode2 > 0 {
+			s += "-E" + pad2(fmt.Sprint(pn.Episode2))
+		}
+		return s
+	case pn.HasSeason && hebrew:
+		return fmt.Sprintf("עונה %d", pn.Season)
+	case pn.HasSeason:
+		return fmt.Sprintf("Season %d", pn.Season)
 	}
-	return t
+	return ""
+}
+
+// compose joins a title with the season/episode part.
+func (pn ParsedName) compose(title string, hebrew bool) string {
+	suf := pn.suffix(hebrew)
+	switch {
+	case title == "":
+		return suf
+	case suf == "":
+		return title
+	case hebrew:
+		return title + " – " + suf
+	}
+	return title + " " + suf
+}
+
+// cleanName turns a release-style file or folder name into a readable title.
+func cleanName(raw string) string {
+	if t := parseName(raw).compose(parseName(raw).Title, false); t != "" {
+		return t
+	}
+	return raw
+}
+
+func atoi(s string) int {
+	n := 0
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			n = n*10 + int(r-'0')
+		}
+	}
+	return n
 }
 
 func pad2(s string) string {
@@ -103,77 +156,12 @@ func isAllDigits(s string) bool {
 	return true
 }
 
-// NameStore keeps custom names chosen in the apps, in names.json next to config.json.
-type NameStore struct {
-	mu   sync.Mutex
-	path string
-	m    map[string]string // item id -> name
-}
-
-func NewNameStore(path string) *NameStore {
-	ns := &NameStore{path: path, m: map[string]string{}}
-	if data, err := os.ReadFile(path); err == nil {
-		json.Unmarshal(data, &ns.m)
-	}
-	return ns
-}
-
-func (ns *NameStore) Get(id string) (string, bool) {
-	if ns == nil {
-		return "", false
-	}
-	ns.mu.Lock()
-	defer ns.mu.Unlock()
-	n, ok := ns.m[id]
-	return n, ok
-}
-
-func (ns *NameStore) set(id, name string) {
-	ns.mu.Lock()
-	defer ns.mu.Unlock()
-	if name == "" {
-		delete(ns.m, id)
-	} else {
-		ns.m[id] = name
-	}
-	data, _ := json.MarshalIndent(ns.m, "", "  ")
-	tmp := ns.path + ".tmp"
-	if os.WriteFile(tmp, data, 0o644) == nil {
-		os.Rename(tmp, ns.path)
-	}
-}
-
-// display returns the name to show for an item: custom, else cleaned up.
-func (l *Library) display(id, raw string) string {
-	if n, ok := l.Names.Get(id); ok {
-		return n
+// display returns the name to show for an item: the Hebrew title for Israeli
+// films and shows (when a TMDB key is set), else the cleaned-up name.
+func (l *Library) display(raw string) string {
+	pn := parseName(raw)
+	if he, ok := l.Titles.Hebrew(pn); ok {
+		return pn.compose(he, true)
 	}
 	return cleanName(raw)
-}
-
-func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if _, _, _, err := s.lib.Resolve(id); err != nil {
-		writeErr(w, err)
-		return
-	}
-	var body struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	name := strings.TrimSpace(body.Name)
-	if len([]rune(name)) > 200 {
-		http.Error(w, "name too long", http.StatusBadRequest)
-		return
-	}
-	s.lib.Names.set(id, name)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) handleResetName(w http.ResponseWriter, r *http.Request) {
-	s.lib.Names.set(r.PathValue("id"), "")
-	w.WriteHeader(http.StatusNoContent)
 }

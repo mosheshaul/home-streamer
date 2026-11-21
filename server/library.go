@@ -37,8 +37,8 @@ type Root struct {
 // Library maps opaque ids to files inside the shared folders.
 // An id is base64url("<rootIndex>:<relative/slash/path>").
 type Library struct {
-	Roots []Root
-	Names *NameStore
+	Roots  []Root
+	Titles *Titles // Hebrew titles; nil disables
 }
 
 func NewLibrary(folders []string) *Library {
@@ -128,11 +128,7 @@ func (l *Library) Browse(id string) (*Listing, error) {
 		out := &Listing{Title: "Library", Items: []Item{}}
 		for i, r := range l.Roots {
 			rid := makeID(i, "")
-			name := r.Name
-			if n, ok := l.Names.Get(rid); ok {
-				name = n
-			}
-			out.Items = append(out.Items, Item{Type: "folder", ID: rid, Name: name, FileName: r.Name})
+			out.Items = append(out.Items, Item{Type: "folder", ID: rid, Name: r.Name, FileName: r.Name})
 		}
 		// With a single shared folder, skip the extra level.
 		if len(l.Roots) == 1 {
@@ -149,11 +145,8 @@ func (l *Library) Browse(id string) (*Listing, error) {
 		return nil, err
 	}
 	out := &Listing{ID: id, Title: l.Roots[n].Name, Items: []Item{}}
-	if t, ok := l.Names.Get(id); ok {
-		out.Title = t
-	}
 	if rel != "" {
-		out.Title = l.display(id, path.Base(rel))
+		out.Title = l.display(path.Base(rel))
 		parent := path.Dir(rel)
 		if parent == "." {
 			parent = ""
@@ -184,7 +177,7 @@ func (l *Library) Browse(id string) (*Listing, error) {
 				continue
 			}
 			fid := makeID(n, childRel)
-			folders = append(folders, Item{Type: "folder", ID: fid, Name: l.display(fid, name), FileName: name})
+			folders = append(folders, Item{Type: "folder", ID: fid, Name: l.display(name), FileName: name})
 			continue
 		}
 		mime, ok := videoExts[strings.ToLower(filepath.Ext(name))]
@@ -195,7 +188,7 @@ func (l *Library) Browse(id string) (*Listing, error) {
 		videos = append(videos, Item{
 			Type:      "video",
 			ID:        vid,
-			Name:      l.display(vid, strings.TrimSuffix(name, filepath.Ext(name))),
+			Name:      l.display(strings.TrimSuffix(name, filepath.Ext(name))),
 			FileName:  name,
 			Size:      info.Size(),
 			Modified:  info.ModTime(),
@@ -233,7 +226,7 @@ func (l *Library) Video(id string) (*Item, error) {
 	only := countVideos(filepath.Dir(abs)) == 1
 	name := filepath.Base(abs)
 	return &Item{
-		Type: "video", ID: id, Name: l.display(id, strings.TrimSuffix(name, filepath.Ext(name))), FileName: name,
+		Type: "video", ID: id, Name: l.display(strings.TrimSuffix(name, filepath.Ext(name))), FileName: name,
 		Size: info.Size(), Modified: info.ModTime(), MimeType: mime,
 		StreamURL: "/stream/" + id,
 		Subtitles: l.findSidecars(n, rel, abs, only),

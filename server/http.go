@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 //go:embed web/index.html
@@ -21,10 +22,12 @@ var indexHTML []byte
 var hlsJS []byte
 
 type Server struct {
-	cfg *Config
-	lib *Library
-	ff  *FFmpeg // nil when FFmpeg isn't installed
-	hls *sessions
+	cfg     *Config
+	cfgPath string
+	cfgMu   sync.Mutex
+	lib     *Library
+	ff      *FFmpeg // nil when FFmpeg isn't installed
+	hls     *sessions
 
 	progress *ProgressStore
 }
@@ -51,8 +54,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/progress", s.progress.handleList)
 	mux.HandleFunc("PUT /api/progress/{id}", s.progress.handlePut)
 	mux.HandleFunc("DELETE /api/progress/{id}", s.progress.handleDelete)
-	mux.HandleFunc("PUT /api/name/{id}", s.handleRename)
-	mux.HandleFunc("DELETE /api/name/{id}", s.handleResetName)
+	mux.HandleFunc("GET /api/settings", s.handleSettings)
+	mux.HandleFunc("PUT /api/settings/tmdb", s.handleSetTMDB)
 	mux.HandleFunc("GET /api/info", s.handleInfo)
 	mux.HandleFunc("GET /api/browse", s.handleBrowse)
 	mux.HandleFunc("GET /api/video/{id}", s.handleVideo)

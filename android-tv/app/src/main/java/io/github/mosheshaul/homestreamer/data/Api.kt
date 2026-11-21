@@ -154,26 +154,6 @@ class Api(val baseUrl: String) {
         )
     }
 
-    /** Show [id] under a custom name on every device; an empty name restores the automatic one. */
-    suspend fun rename(id: String, name: String) = withContext(Dispatchers.IO) {
-        val conn = URL(absolute("/api/name/$id")).openConnection() as HttpURLConnection
-        try {
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
-            if (name.isBlank()) {
-                conn.requestMethod = "DELETE"
-            } else {
-                conn.requestMethod = "PUT"
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conn.outputStream.use { it.write(JSONObject().put("name", name.trim()).toString().toByteArray(Charsets.UTF_8)) }
-            }
-            if (conn.responseCode !in 200..299) throw java.io.IOException("Server answered ${conn.responseCode}")
-        } finally {
-            conn.disconnect()
-        }
-    }
-
     private suspend fun get(path: String, timeoutMs: Int = 15000): String = withContext(Dispatchers.IO) {
         val conn = URL(absolute(path)).openConnection() as HttpURLConnection
         conn.connectTimeout = timeoutMs
