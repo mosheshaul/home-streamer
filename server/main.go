@@ -84,14 +84,27 @@ func main() {
 	log.Printf("Home Streamer server %s (%q) listening on port %d", version, cfg.Name, cfg.Port)
 	for _, ip := range lanIPs() {
 		if isTailscale(ip) {
-			log.Printf("  Tailscale (away from home) address: %s:%d", ip, cfg.Port)
+			log.Printf("  Tailscale (away from home) address: %s:%d  (in a browser: http://%s:%d/)", ip, cfg.Port, ip, cfg.Port)
 		} else {
 			log.Printf("  Home network address: http://%s:%d/  (open in a browser to test)", ip, cfg.Port)
 		}
 	}
+	handler := logRequests(srv.routes())
+	// Also answer on the standard web port, so a browser works with just the
+	// address (http://100.x.y.z) and no ":8095". Skipped if the port is taken.
+	if cfg.Port != 80 {
+		go func() {
+			ln, err := net.Listen("tcp", ":80")
+			if err != nil {
+				return
+			}
+			log.Printf("  Also answering on port 80, so browsers work without \":%d\".", cfg.Port)
+			(&http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}).Serve(ln)
+		}()
+	}
 	hs := &http.Server{
 		Addr:              addr,
-		Handler:           logRequests(srv.routes()),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	log.Fatal(hs.ListenAndServe())
