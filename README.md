@@ -76,7 +76,15 @@ Or with a computer on the same network: enable Developer options and network deb
 
 Open **Home Streamer**. It finds the PC automatically. If it doesn't, type the PC's address (shown in the server window).
 
-On a phone or tablet, tap the video to show the controls. TV remote controls in the player:
+On a phone or tablet:
+
+| Gesture | Action |
+| --- | --- |
+| Tap | Show the controls |
+| Double-tap right / left side | Forward / back 15 seconds |
+| Touch and hold | Play at 2× speed until you let go |
+
+TV remote controls in the player:
 
 | Button | Action |
 | --- | --- |

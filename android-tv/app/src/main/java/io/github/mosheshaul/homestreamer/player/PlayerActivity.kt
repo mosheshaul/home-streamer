@@ -10,7 +10,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.GestureDetector
 import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.widget.TextView
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.annotation.OptIn
@@ -72,6 +76,8 @@ class PlayerActivity : Activity() {
         item = Item.fromJson(JSONObject(intent.getStringExtra(EXTRA_ITEM)!!))
         api = Api(intent.getStringExtra(EXTRA_SERVER)!!)
         playerView = findViewById(R.id.player_view)
+        hint = findViewById(R.id.gesture_hint)
+        setupGestures()
         styleSubtitles(playerView.subtitleView)
         initPlayer()
     }
@@ -367,6 +373,74 @@ class PlayerActivity : Activity() {
         )
         view.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 1.15f * prefs.subtitleScale)
         view.setBottomPaddingFraction(0.06f)
+    }
+
+    // ---------- Touch gestures (phones and tablets) ----------
+
+    private lateinit var hint: TextView
+    private lateinit var gestures: GestureDetector
+    private var ownGesture = false
+    private var speedBoost = false
+    private var speedBeforeBoost = 1f
+    private val hideHint = Runnable { hint.visibility = View.GONE }
+
+    private fun setupGestures() {
+        gestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent) = true
+
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                playerView.showController()
+                return true
+            }
+
+            // Double tap: right half skips forward 15 s, left half goes back 15 s.
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                val p = player ?: return true
+                val forward = e.x > playerView.width / 2f
+                val target = if (forward) p.currentPosition + 15_000 else p.currentPosition - 15_000
+                val end = if (p.duration > 0) p.duration else Long.MAX_VALUE
+                p.seekTo(target.coerceIn(0, end))
+                showHint(if (forward) "15 s  ▶▶" else "◀◀  15 s")
+                return true
+            }
+
+            // Touch and hold: play at 2× until the finger is lifted.
+            override fun onLongPress(e: MotionEvent) {
+                val p = player ?: return
+                if (!p.isPlaying) return
+                speedBeforeBoost = p.playbackParameters.speed
+                p.setPlaybackSpeed(2f)
+                speedBoost = true
+                showHint("2×  ▶▶", sticky = true)
+            }
+        })
+    }
+
+    private fun showHint(text: String, sticky: Boolean = false) {
+        handler.removeCallbacks(hideHint)
+        hint.text = text
+        hint.visibility = View.VISIBLE
+        if (!sticky) handler.postDelayed(hideHint, 700)
+    }
+
+    private fun endSpeedBoost() {
+        if (!speedBoost) return
+        speedBoost = false
+        player?.setPlaybackSpeed(speedBeforeBoost)
+        showHint("1×")
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // While the controls are showing, touches go to them as usual. When
+        // they're hidden, taps, double taps and holds are handled here.
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) ownGesture = !playerView.isControllerFullyVisible
+        if (!ownGesture) return super.dispatchTouchEvent(ev)
+        gestures.onTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+            endSpeedBoost()
+            ownGesture = false
+        }
+        return true
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
