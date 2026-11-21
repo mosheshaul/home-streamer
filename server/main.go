@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ func main() {
 	}
 
 	lib := NewLibrary(cfg.Folders)
+	lib.Names = NewNameStore(filepath.Join(filepath.Dir(*configPath), "names.json"))
 	if len(lib.Roots) == 0 {
 		log.Printf("WARNING: no usable video folders. Edit %s and restart.", *configPath)
 	}
@@ -67,6 +69,14 @@ func main() {
 	}
 
 	srv := &Server{cfg: cfg, lib: lib, progress: NewProgressStore(filepath.Join(filepath.Dir(*configPath), "progress.json"))}
+	srv.progress.nameOf = func(id string) (string, bool) {
+		_, rel, _, err := lib.Resolve(id)
+		if err != nil {
+			return "", false
+		}
+		base := path.Base(rel)
+		return lib.display(id, strings.TrimSuffix(base, path.Ext(base))), true
+	}
 	if ff := findFFmpeg(cfg); ff != nil {
 		srv.ff = ff
 		srv.hls = newSessions(ff)

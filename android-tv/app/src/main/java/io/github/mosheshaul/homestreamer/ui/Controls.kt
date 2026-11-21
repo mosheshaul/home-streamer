@@ -53,6 +53,7 @@ fun AppButton(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppListItem(
     headline: String,
@@ -62,11 +63,13 @@ fun AppListItem(
     leading: String? = null,
     trailing: String? = null,
     selected: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
     if (LocalIsTv.current) {
         TvListItem(
             selected = selected,
             onClick = onClick,
+            onLongClick = onLongClick,
             headlineContent = { TvText(headline, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             supportingContent = if (supporting != null) ({ TvText(supporting) }) else null,
             leadingContent = if (leading != null) ({ TvText(leading, fontSize = 22.sp) }) else null,
@@ -82,7 +85,7 @@ fun AppListItem(
             colors = ListItemDefaults.colors(
                 containerColor = if (selected) Color(0xFF263040) else Color(0xFF1A1F26),
             ),
-            modifier = modifier.clickable(onClick = onClick),
+            modifier = modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
         )
     }
 }

@@ -101,3 +101,22 @@ func TestSidecars(t *testing.T) {
 		t.Errorf("Ep 2 subs = %d, want 2: %+v", n, l.Items[1].Subtitles)
 	}
 }
+
+func TestCleanName(t *testing.T) {
+	cases := map[string]string{
+		"Heart.of.the.Beast.2026.2160p.REPACK.iT.WEB-DL.DDP5.1.Atmos.DV.HDR10+.H.265-GTM": "Heart of the Beast",
+		"Lo.Kara.Clum.S01.1080p.WEB-DL.AAC2.0.H.264":                                      "Lo Kara Clum Season 1",
+		"Lo.Kara.Clum.S01E03.1080p.WEB-DL":                                                "Lo Kara Clum S01E03",
+		"The Matrix (1999) [1080p] [YTS.MX]":                                              "The Matrix",
+		"1917.2019.1080p.BluRay.x264":                                                     "1917",
+		"Some_Show_-_Season_2":                                                            "Some Show Season 2",
+		"Old Movie":                                                                       "Old Movie",
+		"לא קרה כלום":                                                                     "לא קרה כלום",
+		"Show.Name.2x05.HDTV":                                                             "Show Name S02E05",
+	}
+	for in, want := range cases {
+		if got := cleanName(in); got != want {
+			t.Errorf("cleanName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

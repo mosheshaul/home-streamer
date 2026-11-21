@@ -22,6 +22,9 @@ type Progress struct {
 }
 
 type ProgressStore struct {
+	// nameOf gives the current display name of a video, so renames show here too.
+	nameOf func(id string) (string, bool)
+
 	mu   sync.Mutex
 	path string
 	m    map[string]*Progress
@@ -54,7 +57,21 @@ func (ps *ProgressStore) handleList(w http.ResponseWriter, r *http.Request) {
 	if len(list) > 30 {
 		list = list[:30]
 	}
-	writeJSON(w, list)
+	out := make([]Progress, len(list))
+	for i, p := range list {
+		out[i] = *p
+		if ps.nameOf == nil {
+			continue
+		}
+		var item map[string]any
+		if json.Unmarshal(p.Item, &item) == nil {
+			if n, ok := ps.nameOf(p.ID); ok {
+				item["name"] = n
+				out[i].Item, _ = json.Marshal(item)
+			}
+		}
+	}
+	writeJSON(w, out)
 }
 
 func (ps *ProgressStore) handlePut(w http.ResponseWriter, r *http.Request) {

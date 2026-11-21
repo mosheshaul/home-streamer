@@ -38,6 +38,7 @@ type Root struct {
 // An id is base64url("<rootIndex>:<relative/slash/path>").
 type Library struct {
 	Roots []Root
+	Names *NameStore
 }
 
 func NewLibrary(folders []string) *Library {
@@ -105,7 +106,8 @@ type Subtitle struct {
 type Item struct {
 	Type      string     `json:"type"` // "folder" or "video"
 	ID        string     `json:"id"`
-	Name      string     `json:"name"`
+	Name      string     `json:"name"`               // name to show (custom or cleaned up)
+	FileName  string     `json:"fileName,omitempty"` // the real file or folder name
 	Size      int64      `json:"size,omitempty"`
 	Modified  time.Time  `json:"modified,omitzero"`
 	MimeType  string     `json:"mimeType,omitempty"`
@@ -125,7 +127,12 @@ func (l *Library) Browse(id string) (*Listing, error) {
 	if id == "" {
 		out := &Listing{Title: "Library", Items: []Item{}}
 		for i, r := range l.Roots {
-			out.Items = append(out.Items, Item{Type: "folder", ID: makeID(i, ""), Name: r.Name})
+			rid := makeID(i, "")
+			name := r.Name
+			if n, ok := l.Names.Get(rid); ok {
+				name = n
+			}
+			out.Items = append(out.Items, Item{Type: "folder", ID: rid, Name: name, FileName: r.Name})
 		}
 		// With a single shared folder, skip the extra level.
 		if len(l.Roots) == 1 {
@@ -142,8 +149,11 @@ func (l *Library) Browse(id string) (*Listing, error) {
 		return nil, err
 	}
 	out := &Listing{ID: id, Title: l.Roots[n].Name, Items: []Item{}}
+	if t, ok := l.Names.Get(id); ok {
+		out.Title = t
+	}
 	if rel != "" {
-		out.Title = path.Base(rel)
+		out.Title = l.display(id, path.Base(rel))
 		parent := path.Dir(rel)
 		if parent == "." {
 			parent = ""
@@ -173,7 +183,8 @@ func (l *Library) Browse(id string) (*Listing, error) {
 			if isSubsFolder(name) {
 				continue
 			}
-			folders = append(folders, Item{Type: "folder", ID: makeID(n, childRel), Name: name})
+			fid := makeID(n, childRel)
+			folders = append(folders, Item{Type: "folder", ID: fid, Name: l.display(fid, name), FileName: name})
 			continue
 		}
 		mime, ok := videoExts[strings.ToLower(filepath.Ext(name))]
@@ -184,7 +195,8 @@ func (l *Library) Browse(id string) (*Listing, error) {
 		videos = append(videos, Item{
 			Type:      "video",
 			ID:        vid,
-			Name:      strings.TrimSuffix(name, filepath.Ext(name)),
+			Name:      l.display(vid, strings.TrimSuffix(name, filepath.Ext(name))),
+			FileName:  name,
 			Size:      info.Size(),
 			Modified:  info.ModTime(),
 			MimeType:  mime,
@@ -198,6 +210,9 @@ func (l *Library) Browse(id string) (*Listing, error) {
 		videos[i].Subtitles = l.findSidecars(n, vrel, vabs, len(videos) == 1)
 	}
 	out.Items = append(folders, videos...)
+	if out.Items == nil {
+		out.Items = []Item{}
+	}
 	return out, nil
 }
 
@@ -218,7 +233,7 @@ func (l *Library) Video(id string) (*Item, error) {
 	only := countVideos(filepath.Dir(abs)) == 1
 	name := filepath.Base(abs)
 	return &Item{
-		Type: "video", ID: id, Name: strings.TrimSuffix(name, filepath.Ext(name)),
+		Type: "video", ID: id, Name: l.display(id, strings.TrimSuffix(name, filepath.Ext(name))), FileName: name,
 		Size: info.Size(), Modified: info.ModTime(), MimeType: mime,
 		StreamURL: "/stream/" + id,
 		Subtitles: l.findSidecars(n, rel, abs, only),
