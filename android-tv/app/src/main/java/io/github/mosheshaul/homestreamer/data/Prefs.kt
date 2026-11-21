@@ -33,6 +33,11 @@ class Prefs(context: Context) {
         get() = sp.getFloat("subtitle_scale", 1.0f)
         set(v) = sp.edit().putFloat("subtitle_scale", v).apply()
 
+    /** "auto", "original", "1080" or "720". */
+    var quality: String
+        get() = sp.getString("quality", "auto") ?: "auto"
+        set(v) = sp.edit().putString("quality", v).apply()
+
     fun resumePosition(videoId: String): Long = sp.getLong("pos_$videoId", 0L)
 
     fun saveResume(videoId: String, positionMs: Long, durationMs: Long, item: Item) {

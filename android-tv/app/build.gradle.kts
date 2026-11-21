@@ -62,6 +62,7 @@ dependencies {
 
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-ui:$media3")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3")
     // Software audio decoders (DTS, TrueHD, AC3...) for TVs that lack them.
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:$media3+2")
 }

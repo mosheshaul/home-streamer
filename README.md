@@ -8,7 +8,8 @@ Watch the videos on your Windows PC on an Android TV, phone or tablet.
 ## What it does
 
 - Browse your folders with the TV remote or by touch, with "Continue watching" and resume.
-- Plays **MKV and MP4** (also M4V, MOV, WebM, AVI, TS) directly from the PC with no conversion, so seeking is instant and the PC barely works.
+- Plays **MKV, MP4 and AVI** (also M4V, MOV, WebM, TS, WMV, MPG) straight from the PC, so seeking is instant and the PC barely works.
+- **Converts on the PC when needed** (with FFmpeg): 4K/HDR/Dolby Vision files a phone can't decode, old DivX/Xvid AVIs, and big files when you're away from home are converted on the fly to 1080p or 720p H.264, with HDR turned into normal colors. Subtitles keep working.
 - **Subtitles:**
   - Embedded subtitle tracks inside MKV/MP4 (SRT, SSA/ASS, PGS, and more).
   - **SRT files next to the video**: `Movie.srt`, `Movie.he.srt`, `Movie.heb.srt`, `Movie.en.forced.srt`, and so on. If a folder holds a single video, any `.srt` in it is used, and so are files in a `Subs` or `Subtitles` subfolder.
@@ -40,6 +41,22 @@ Watch the videos on your Windows PC on an Android TV, phone or tablet.
 **Start automatically with Windows:** press `Win + R`, type `shell:startup`, press Enter, and put a shortcut to `HomeStreamer.exe` in the folder that opens. In the shortcut's properties, set **Run** to **Minimized**.
 
 Also make sure the PC doesn't go to sleep while you watch (Settings → System → Power).
+
+### Optional: install FFmpeg for conversion
+
+Some files can't play on every device, for example 4K Dolby Vision on a phone, or old DivX/Xvid AVIs. HomeStreamer can convert them while you watch if FFmpeg is installed on the PC:
+
+1. Open **Terminal** (or Command Prompt) on the PC and run:
+
+   ```
+   winget install Gyan.FFmpeg
+   ```
+
+2. Close and restart HomeStreamer. The window should say "FFmpeg found".
+
+HomeStreamer uses your graphics card's video encoder when it has one (NVIDIA, Intel or AMD), and the processor otherwise. You can also put `ffmpeg.exe` and `ffprobe.exe` next to `HomeStreamer.exe`, or set `"ffmpeg": "C:\\path\\to\\ffmpeg.exe"` in `config.json`.
+
+In the app, **Settings → Video quality** chooses between Automatic (the default), always the original file, or always converting to 1080p or 720p.
 
 ## 2. Install the app (TV, phone or tablet)
 
@@ -101,6 +118,9 @@ Releases are signed with a permanent key stored in the repository's Actions secr
 | `GET /api/video/<id>` | One video with its subtitle files |
 | `GET /stream/<id>` | The video file, with HTTP range support |
 | `GET /subs/<id>` | A subtitle file as UTF-8 SRT (`?format=vtt` for WebVTT) |
+| `GET /api/media/<id>` | Streams inside a video (FFprobe), and whether it can be converted |
+| `GET /hls/<id>/index.m3u8?h=1080&br=8000&a=0` | The video converted to HLS (needs FFmpeg) |
+| `GET /esubs/<id>/<n>` | A subtitle track extracted from inside the video, as SRT |
 | UDP `47820` | Answers `HOMESTREAMER_DISCOVER` broadcasts so the app finds the PC |
 
 The server only serves files inside the shared folders and is meant for your home network. Don't forward its port to the internet.

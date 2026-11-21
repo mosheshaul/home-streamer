@@ -403,6 +403,13 @@ private val subtitleChoices = listOf(
     "es" to "Spanish",
 )
 
+private val qualityChoices = listOf(
+    "auto" to ("Automatic" to "Plays the original file when this device can, and converts on the PC when it can't or the file is too big for the connection."),
+    "original" to ("Always the original file" to "Best quality. Some 4K, HDR or old AVI files may not play."),
+    "1080" to ("Convert to 1080p" to "About 8 Mb/s. Needs FFmpeg on the PC."),
+    "720" to ("Convert to 720p" to "About 3 Mb/s, for slow connections. Needs FFmpeg on the PC."),
+)
+
 private val sizeChoices = listOf(0.8f to "Small", 1.0f to "Medium", 1.25f to "Large", 1.5f to "Extra large")
 
 @Composable
@@ -410,6 +417,7 @@ private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChangeServer: () 
     val isTv = LocalIsTv.current
     var lang by remember { mutableStateOf(prefs.subtitleLanguage) }
     var scale by remember { mutableStateOf(prefs.subtitleScale) }
+    var quality by remember { mutableStateOf(prefs.quality) }
     val firstFocus = remember { FocusRequester() }
     BackHandler(onBack = onBack)
     LaunchedEffect(Unit) { if (isTv) runCatching { firstFocus.requestFocus() } }
@@ -428,6 +436,19 @@ private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChangeServer: () 
         item {
             Text("Away from home", fontSize = 18.sp, color = Muted)
             AwayAddressRow(prefs)
+        }
+        item {
+            Spacer(Modifier.height(8.dp))
+            Text("Video quality", fontSize = 18.sp, color = Muted)
+        }
+        items(qualityChoices) { (code, texts) ->
+            AppListItem(
+                headline = texts.first,
+                supporting = texts.second,
+                selected = quality == code,
+                trailing = if (quality == code) "✓" else null,
+                onClick = { quality = code; prefs.quality = code },
+            )
         }
         item {
             Spacer(Modifier.height(8.dp))

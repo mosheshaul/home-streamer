@@ -23,6 +23,11 @@ type Config struct {
 	Name    string   `json:"name"`
 	Port    int      `json:"port"`
 	Folders []string `json:"folders"`
+	// Optional: path to ffmpeg.exe, H.264 encoder (h264_nvenc, h264_qsv,
+	// h264_amf or libx264) and decoder acceleration ("auto" or "none").
+	FFmpeg  string `json:"ffmpeg,omitempty"`
+	Encoder string `json:"encoder,omitempty"`
+	HWAccel string `json:"hwaccel,omitempty"`
 }
 
 type multiFlag []string
@@ -62,6 +67,13 @@ func main() {
 	}
 
 	srv := &Server{cfg: cfg, lib: lib}
+	if ff := findFFmpeg(cfg); ff != nil {
+		srv.ff = ff
+		srv.hls = newSessions(ff)
+		log.Printf("FFmpeg found (%s, encoder %s): videos can be converted for devices that can't play them.", ff.FFmpeg, ff.Encoder)
+	} else {
+		log.Printf("FFmpeg not found: conversion is off. Install it with: winget install Gyan.FFmpeg  (then restart HomeStreamer)")
+	}
 	go func() {
 		if err := runDiscovery(cfg); err != nil {
 			log.Printf("discovery disabled: %v", err)

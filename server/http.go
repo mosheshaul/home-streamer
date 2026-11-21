@@ -4,10 +4,12 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -17,6 +19,8 @@ var indexHTML []byte
 type Server struct {
 	cfg *Config
 	lib *Library
+	ff  *FFmpeg // nil when FFmpeg isn't installed
+	hls *sessions
 }
 
 func (s *Server) routes() http.Handler {
@@ -31,6 +35,10 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /stream/{id}", s.handleStream)
 	mux.HandleFunc("HEAD /stream/{id}", s.handleStream)
 	mux.HandleFunc("GET /subs/{id}", s.handleSubs)
+	mux.HandleFunc("GET /api/media/{id}", s.handleMedia)
+	mux.HandleFunc("GET /hls/{id}/index.m3u8", s.handlePlaylist)
+	mux.HandleFunc("GET /hls/{id}/seg/{file}", s.handleSegment)
+	mux.HandleFunc("GET /esubs/{id}/{index}", s.handleEmbeddedSub)
 	return mux
 }
 
@@ -52,7 +60,11 @@ func writeErr(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]any{"app": "home-streamer", "name": s.cfg.Name, "version": version})
+	info := map[string]any{"app": "home-streamer", "name": s.cfg.Name, "version": version, "transcode": s.ff != nil}
+	if s.ff != nil {
+		info["encoder"] = s.ff.Encoder
+	}
+	writeJSON(w, info)
 }
 
 func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
@@ -133,4 +145,119 @@ func (s *Server) handleSubs(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/x-subrip; charset=utf-8")
 	w.Write([]byte(text))
+}
+
+func (s *Server) resolveVideo(w http.ResponseWriter, id string) (string, bool) {
+	_, _, abs, err := s.lib.Resolve(id)
+	if err == nil {
+		if _, ok := videoExts[strings.ToLower(filepath.Ext(abs))]; !ok {
+			err = errBadID
+		} else if _, serr := os.Stat(abs); serr != nil {
+			err = serr
+		}
+	}
+	if err != nil {
+		writeErr(w, err)
+		return "", false
+	}
+	return abs, true
+}
+
+// handleMedia describes a video's streams and whether it can be converted.
+func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	abs, ok := s.resolveVideo(w, id)
+	if !ok {
+		return
+	}
+	if s.ff == nil {
+		writeJSON(w, &MediaInfo{CanTranscode: false, Audio: []AudioTrack{}, Subtitles: []EmbeddedSub{}})
+		return
+	}
+	mi, err := s.ff.Probe(abs)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	out := *mi
+	out.Subtitles = append([]EmbeddedSub(nil), mi.Subtitles...)
+	ready := s.ff.SubsReady(abs, mi)
+	for i := range out.Subtitles {
+		if out.Subtitles[i].Text {
+			out.Subtitles[i].Ready = ready
+			out.Subtitles[i].URL = fmt.Sprintf("/esubs/%s/%d", id, out.Subtitles[i].Index)
+		}
+	}
+	writeJSON(w, &out)
+}
+
+func (s *Server) handlePlaylist(w http.ResponseWriter, r *http.Request) {
+	if s.ff == nil {
+		http.Error(w, "conversion needs FFmpeg on the PC", http.StatusNotImplemented)
+		return
+	}
+	abs, ok := s.resolveVideo(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+	mi, err := s.ff.Probe(abs)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write([]byte(s.ff.Playlist(mi, r.URL.RawQuery)))
+}
+
+func (s *Server) handleSegment(w http.ResponseWriter, r *http.Request) {
+	if s.ff == nil {
+		http.Error(w, "conversion needs FFmpeg on the PC", http.StatusNotImplemented)
+		return
+	}
+	abs, ok := s.resolveVideo(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+	n, err := strconv.Atoi(strings.TrimSuffix(r.PathValue("file"), ".ts"))
+	if err != nil || n < 0 {
+		writeErr(w, errBadID)
+		return
+	}
+	mi, err := s.ff.Probe(abs)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	ss := s.hls.get(abs, mi, parseQuality(r.URL.Query().Get))
+	p, err := s.hls.Segment(r.Context(), ss, n)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "video/mp2t")
+	http.ServeFile(w, r, p)
+}
+
+func (s *Server) handleEmbeddedSub(w http.ResponseWriter, r *http.Request) {
+	if s.ff == nil {
+		writeErr(w, errBadID)
+		return
+	}
+	abs, ok := s.resolveVideo(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+	idx, err := strconv.Atoi(r.PathValue("index"))
+	if err != nil {
+		writeErr(w, errBadID)
+		return
+	}
+	data, err := os.ReadFile(s.ff.SubPath(abs, idx))
+	if err != nil {
+		http.Error(w, "subtitles not ready yet", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-subrip; charset=utf-8")
+	w.Write([]byte(decodeText(data)))
 }

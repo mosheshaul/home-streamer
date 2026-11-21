@@ -22,6 +22,10 @@ var videoExts = map[string]string{
 	".avi":  "video/x-msvideo",
 	".ts":   "video/mp2t",
 	".m2ts": "video/mp2t",
+	".wmv":  "video/x-ms-wmv",
+	".mpg":  "video/mpeg",
+	".mpeg": "video/mpeg",
+	".flv":  "video/x-flv",
 }
 
 // Root is one shared folder.

@@ -67,6 +67,30 @@ data class Listing(val id: String, val title: String, val items: List<Item>)
 
 data class ServerInfo(val name: String, val version: String)
 
+data class EmbeddedSubtitle(
+    val index: Int,
+    val label: String,
+    val language: String?,
+    val forced: Boolean,
+    val text: Boolean,
+    val ready: Boolean,
+    val url: String?,
+)
+
+/** What's inside a video file, from the server's FFprobe. */
+data class MediaInfo(
+    val duration: Double,
+    val bitrate: Long,
+    val videoCodec: String,
+    val width: Int,
+    val height: Int,
+    val hdr: Boolean,
+    val dolbyVision: Boolean,
+    val defaultAudio: Int,
+    val embeddedSubtitles: List<EmbeddedSubtitle>,
+    val canTranscode: Boolean,
+)
+
 /** Talks to the Home Streamer server on the PC. [baseUrl] looks like http://192.168.1.20:8095 */
 class Api(val baseUrl: String) {
 
@@ -85,6 +109,41 @@ class Api(val baseUrl: String) {
             id = o.optString("id", ""),
             title = o.optString("title", ""),
             items = (0 until arr.length()).map { Item.fromJson(arr.getJSONObject(it)) },
+        )
+    }
+
+    suspend fun media(id: String): MediaInfo {
+        val o = JSONObject(get("/api/media/$id", timeoutMs = 60000))
+        val audio = o.optJSONArray("audio")
+        var defaultAudio = 0
+        if (audio != null) {
+            for (i in 0 until audio.length()) {
+                if (audio.getJSONObject(i).optBoolean("default")) { defaultAudio = i; break }
+            }
+        }
+        val subs = o.optJSONArray("embeddedSubtitles")
+        return MediaInfo(
+            duration = o.optDouble("duration", 0.0),
+            bitrate = o.optLong("bitrate", 0),
+            videoCodec = o.optString("videoCodec", ""),
+            width = o.optInt("width", 0),
+            height = o.optInt("height", 0),
+            hdr = o.optBoolean("hdr", false),
+            dolbyVision = o.optBoolean("dolbyVision", false),
+            defaultAudio = defaultAudio,
+            embeddedSubtitles = if (subs == null) emptyList() else (0 until subs.length()).map {
+                val e = subs.getJSONObject(it)
+                EmbeddedSubtitle(
+                    index = e.optInt("index"),
+                    label = e.optString("label", "Subtitles"),
+                    language = e.optString("language").ifEmpty { null },
+                    forced = e.optBoolean("forced", false),
+                    text = e.optBoolean("text", false),
+                    ready = e.optBoolean("ready", false),
+                    url = e.optString("url").ifEmpty { null },
+                )
+            },
+            canTranscode = o.optBoolean("canTranscode", false),
         )
     }
 
