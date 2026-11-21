@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme as phoneDarkColors
@@ -264,8 +265,25 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     var recent by remember { mutableStateOf(prefs.recent()) }
+    var toRemove by remember { mutableStateOf<Item?>(null) }
     val firstFocus = remember { FocusRequester() }
     val current = stack.last()
+
+    toRemove?.let { victim ->
+        AlertDialog(
+            onDismissRequest = { toRemove = null },
+            title = { Text("Remove from Continue watching?") },
+            text = { Text("\"${victim.name}\" will start from the beginning next time.") },
+            confirmButton = {
+                AppButton("Remove", onClick = {
+                    prefs.forget(victim.id)
+                    recent = prefs.recent()
+                    toRemove = null
+                })
+            },
+            dismissButton = { AppButton("Cancel", onClick = { toRemove = null }, primary = false) },
+        )
+    }
 
     // Refresh "continue watching" when coming back from the player.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -339,10 +357,14 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
                     item(key = "recent") {
                         Column {
                             Text("Continue watching", fontSize = 17.sp, color = Muted)
+                            Text(
+                                if (isTv) "Hold OK on a title to remove it" else "Press and hold a title to remove it",
+                                fontSize = 13.sp, color = Muted,
+                            )
                             Spacer(Modifier.height(8.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(recent, key = { "r" + it.first.id }) { (item, progress) ->
-                                    RecentCard(item, progress) { open(item) }
+                                    RecentCard(item, progress, onLongClick = { toRemove = item }) { open(item) }
                                 }
                             }
                             Spacer(Modifier.height(16.dp))
@@ -376,8 +398,8 @@ private fun describe(item: Item, prefs: Prefs): String {
 }
 
 @Composable
-private fun RecentCard(item: Item, progress: Float, onClick: () -> Unit) {
-    AppCard(onClick = onClick, modifier = Modifier.width(240.dp).height(96.dp)) {
+private fun RecentCard(item: Item, progress: Float, onLongClick: () -> Unit, onClick: () -> Unit) {
+    AppCard(onClick = onClick, onLongClick = onLongClick, modifier = Modifier.width(240.dp).height(96.dp)) {
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             Text(item.name, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 16.sp, color = Color(0xFFE8EAED), modifier = Modifier.weight(1f))
             Box(Modifier.fillMaxWidth().height(4.dp).background(Color(0x33FFFFFF), RoundedCornerShape(2.dp))) {

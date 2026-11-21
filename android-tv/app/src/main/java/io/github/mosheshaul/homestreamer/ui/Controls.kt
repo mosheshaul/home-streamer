@@ -1,6 +1,9 @@
 package io.github.mosheshaul.homestreamer.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -84,16 +87,22 @@ fun AppListItem(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun AppCard(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun AppCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     if (LocalIsTv.current) {
-        TvSurface(onClick = onClick, modifier = modifier) {
+        // On a TV, holding OK on the remote is a long press.
+        TvSurface(onClick = onClick, onLongClick = onLongClick, modifier = modifier) {
             androidx.compose.foundation.layout.Column(content = content)
         }
     } else {
         Card(
-            onClick = onClick,
-            modifier = modifier,
+            modifier = modifier.clip(CardDefaults.shape).combinedClickable(onClick = onClick, onLongClick = onLongClick),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1F26)),
             content = content,
         )

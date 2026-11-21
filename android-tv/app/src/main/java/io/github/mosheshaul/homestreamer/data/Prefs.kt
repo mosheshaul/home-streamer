@@ -77,6 +77,12 @@ class Prefs(context: Context) {
         sp.edit().putString("recent", out.toString()).apply()
     }
 
+    /** Remove a video from "Continue watching" and forget where it was stopped. */
+    fun forget(videoId: String) {
+        sp.edit().remove("pos_$videoId").apply()
+        removeRecent(videoId)
+    }
+
     private fun removeRecent(videoId: String) {
         val arr = runCatching { JSONArray(sp.getString("recent", "[]")) }.getOrDefault(JSONArray())
         val out = JSONArray()
