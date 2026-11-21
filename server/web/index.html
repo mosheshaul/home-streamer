@@ -66,7 +66,7 @@
   #topbar { position: absolute; left: 0; right: 0; top: 0; display: flex; gap: 10px; align-items: center; padding: 12px 16px; background: linear-gradient(#000c, #0000); transition: opacity .3s; }
   #topbar .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 18px; }
   #stage.idle #topbar { opacity: 0; pointer-events: none; }
-  #stage.idle { cursor: none; }
+  #stage.idle, #stage.idle #gestures, #stage.idle video { cursor: none; }
   #hint { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); background: #000b; padding: 8px 18px; border-radius: 20px; font-weight: 700; font-size: 18px; pointer-events: none; }
   #status { position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); background: #000b; padding: 6px 14px; border-radius: 14px; font-size: 14px; pointer-events: none; max-width: 90%; text-align: center; }
   video::cue { font-size: calc(var(--sub-size) * 3.6vh); background: transparent; color: #fff; font-weight: 600;
@@ -94,7 +94,7 @@
 
 <div id="stage" hidden>
   <video id="video" controls controlslist="nofullscreen nodownload noremoteplayback" disablepictureinpicture playsinline crossorigin="anonymous"></video>
-  <div id="gestures" title="Click: play/pause · Double-click right/left: ±15 s · Hold: 2× speed"></div>
+  <div id="gestures"></div>
   <div id="topbar">
     <button id="backBtn" title="Back (Esc)">←</button>
     <div class="title" id="playTitle"></div>
@@ -326,6 +326,12 @@ async function play(item) {
   clearInterval(saveTimer);
   saveTimer = setInterval(saveProgress, 10000);
   poke();
+  // Explain the mouse controls once, the first few times the player opens.
+  const shown = store.get('tipsShown', 0);
+  if (shown < 3) {
+    store.set('tipsShown', shown + 1);
+    setTimeout(() => flashStatus('Click: play/pause · Double-click right/left: ±15 s · Hold: 2× speed', 5000), 1500);
+  }
 }
 
 function quality() {
