@@ -44,6 +44,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import io.github.mosheshaul.homestreamer.data.Prefs
+import io.github.mosheshaul.homestreamer.data.ProgressSync
 import org.json.JSONObject
 
 @OptIn(UnstableApi::class)
@@ -107,6 +108,7 @@ class PlayerActivity : Activity() {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) {
                     prefs.saveResume(item.id, p.duration, p.duration, item)
+                    ProgressSync.push(api.baseUrl, item, p.duration, p.duration)
                     finish()
                 }
             }
@@ -470,7 +472,10 @@ class PlayerActivity : Activity() {
 
     private fun saveProgress() {
         val p = player ?: return
-        if (p.duration > 0) prefs.saveResume(item.id, p.currentPosition, p.duration, item)
+        if (p.duration > 0) {
+            prefs.saveResume(item.id, p.currentPosition, p.duration, item)
+            ProgressSync.push(api.baseUrl, item, p.currentPosition, p.duration)
+        }
     }
 
     override fun onStop() {

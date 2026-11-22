@@ -92,4 +92,22 @@ class Prefs(context: Context) {
         }
         sp.edit().putString("recent", out.toString()).apply()
     }
+
+    /** Takes the PC's "Continue watching" list, which every device shares. */
+    fun replaceRecent(list: List<RemoteProgress>) {
+        val ed = sp.edit()
+        val old = runCatching { JSONArray(sp.getString("recent", "[]")) }.getOrDefault(JSONArray())
+        for (i in 0 until old.length()) {
+            runCatching { ed.remove("pos_" + old.getJSONObject(i).getJSONObject("item").getString("id")) }
+        }
+        val out = JSONArray()
+        for (p in list.take(20)) {
+            ed.putLong("pos_${p.item.id}", p.positionMs)
+            out.put(
+                JSONObject().put("server", serverUrl).put("item", p.item.toJson())
+                    .put("progress", if (p.durationMs > 0) p.positionMs.toDouble() / p.durationMs else 0.0)
+            )
+        }
+        ed.putString("recent", out.toString()).apply()
+    }
 }

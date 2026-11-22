@@ -7,7 +7,7 @@ Watch the videos on your Windows PC on an Android TV, phone or tablet.
 
 ## What it does
 
-- Browse your folders with the TV remote or by touch, with "Continue watching" and resume.
+- Browse your folders with the TV remote or by touch, with "Continue watching" and resume. Continue watching is kept on the PC, so you can stop on one device (TV, phone, laptop) and carry on from the same spot on another.
 - Plays **MKV, MP4 and AVI** (also M4V, MOV, WebM, TS, WMV, MPG) straight from the PC, so seeking is instant and the PC barely works.
 - **Converts on the PC when needed** (with FFmpeg): 4K/HDR/Dolby Vision files a phone can't decode, old DivX/Xvid AVIs, and big files when you're away from home are converted on the fly to 1080p or 720p H.264, with HDR turned into normal colors. Subtitles keep working.
 - **Subtitles:**
@@ -110,7 +110,7 @@ HomeStreamer has a full player built in, so a laptop needs nothing extra install
 1. On the laptop, open **Microsoft Edge** (or Chrome) and go to the PC's address, for example `http://192.168.1.20:8095`. If the laptop has Tailscale, use the PC's Tailscale address (`http://100.x.x.x:8095`) instead: it works both at home and away.
 2. To use it like an app, open Edge's menu **⋯ → Apps → Install this site as an app** (or **More tools → Pin to taskbar**).
 
-The browser player has the same subtitles (SRT files and the subtitles inside the video, Hebrew included), conversion on the PC for files the browser can't play (needs FFmpeg), and "Continue watching", which is saved on the PC.
+The browser player has the same subtitles (SRT files and the subtitles inside the video, Hebrew included), conversion on the PC for files the browser can't play (needs FFmpeg), and "Continue watching", shared with the TV and phone apps.
 
 | Mouse / keyboard | Action |
 | --- | --- |

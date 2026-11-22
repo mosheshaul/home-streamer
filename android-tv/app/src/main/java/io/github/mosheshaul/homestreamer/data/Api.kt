@@ -44,7 +44,7 @@ data class Item(
 
     fun toJson(): JSONObject = JSONObject()
         .put("type", type).put("id", id).put("name", name).put("size", size)
-        .put("mimeType", mimeType ?: "").put("streamUrl", streamUrl ?: "")
+        .put("fileName", fileName).put("mimeType", mimeType).put("streamUrl", streamUrl)
         .put("subtitles", JSONArray(subtitles.map { it.toJson() }))
 
     companion object {
@@ -64,6 +64,9 @@ data class Item(
         }
     }
 }
+
+/** A video in "Continue watching", as saved on the PC. */
+data class RemoteProgress(val item: Item, val positionMs: Long, val durationMs: Long)
 
 data class Listing(val id: String, val title: String, val items: List<Item>)
 
@@ -152,6 +155,45 @@ class Api(val baseUrl: String) {
             canTranscode = o.optBoolean("canTranscode", false),
             subtitlesProgress = o.optInt("subtitlesProgress", -1),
         )
+    }
+
+    /** "Continue watching", shared by every device. Most recent first. */
+    suspend fun progress(): List<RemoteProgress> {
+        val arr = JSONArray(get("/api/progress", timeoutMs = 6000))
+        return (0 until arr.length()).mapNotNull { i ->
+            runCatching {
+                val o = arr.getJSONObject(i)
+                RemoteProgress(
+                    item = Item.fromJson(o.getJSONObject("item")),
+                    positionMs = (o.optDouble("position", 0.0) * 1000).toLong(),
+                    durationMs = (o.optDouble("duration", 0.0) * 1000).toLong(),
+                )
+            }.getOrNull()
+        }
+    }
+
+    suspend fun putProgress(item: Item, positionMs: Long, durationMs: Long) = send(
+        "PUT", "/api/progress/${item.id}",
+        JSONObject().put("position", positionMs / 1000.0).put("duration", durationMs / 1000.0).put("item", item.toJson()),
+    )
+
+    suspend fun deleteProgress(id: String) = send("DELETE", "/api/progress/$id", null)
+
+    private suspend fun send(method: String, path: String, body: JSONObject?) = withContext(Dispatchers.IO) {
+        val conn = URL(absolute(path)).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.requestMethod = method
+            if (body != null) {
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            }
+            if (conn.responseCode !in 200..299) throw java.io.IOException("Server answered ${conn.responseCode}")
+        } finally {
+            conn.disconnect()
+        }
     }
 
     /** Whether the PC shows Israeli titles in Hebrew (it has a TMDB key). */

@@ -60,6 +60,7 @@ import io.github.mosheshaul.homestreamer.data.Discovery
 import io.github.mosheshaul.homestreamer.data.FoundServer
 import io.github.mosheshaul.homestreamer.data.Item
 import io.github.mosheshaul.homestreamer.data.Listing
+import io.github.mosheshaul.homestreamer.data.ProgressSync
 import io.github.mosheshaul.homestreamer.data.Prefs
 import io.github.mosheshaul.homestreamer.player.PlayerActivity
 import kotlinx.coroutines.launch
@@ -266,6 +267,7 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
     var reload by remember { mutableIntStateOf(0) }
     var recent by remember { mutableStateOf(prefs.recent()) }
     var toRemove by remember { mutableStateOf<Item?>(null) }
+    var syncTick by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     val firstFocus = remember { FocusRequester() }
@@ -279,6 +281,7 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
             confirmButton = {
                 AppButton("Remove", onClick = {
                     prefs.forget(victim.id)
+                    server?.let { ProgressSync.forget(it, victim.id) }
                     recent = prefs.recent()
                     toRemove = null
                 })
@@ -290,9 +293,21 @@ private fun BrowseScreen(prefs: Prefs, onSettings: () -> Unit) {
     // Refresh "continue watching" when coming back from the player.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) recent = prefs.recent() }
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) {
+                recent = prefs.recent()
+                syncTick++
+            }
+        }
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
+    }
+
+    // "Continue watching" is kept on the PC and shared by every device.
+    LaunchedEffect(server, syncTick) {
+        val active = server ?: return@LaunchedEffect
+        ProgressSync.pull(active, prefs)
+        recent = prefs.recent()
     }
 
     LaunchedEffect(current, reload) {
