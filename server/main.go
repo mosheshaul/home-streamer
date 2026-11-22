@@ -51,9 +51,13 @@ func main() {
 	if *configPath == "" {
 		*configPath = defaultConfigPath()
 	}
+	setupLogging(filepath.Dir(*configPath))
+	if !singleInstance() {
+		return
+	}
 	cfg, err := loadConfig(*configPath)
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		fatal("config: %v", err)
 	}
 	if *port != 0 {
 		cfg.Port = *port
@@ -118,12 +122,14 @@ func main() {
 			(&http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}).Serve(ln)
 		}()
 	}
-	hs := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: 10 * time.Second,
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		fatal("Port %d is already in use, maybe by another copy of Home Streamer. (%v)", cfg.Port, err)
 	}
-	log.Fatal(hs.ListenAndServe())
+	hs := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	runApp(cfg.Name, cfg.Port, *configPath, func() {
+		fatal("%v", hs.Serve(ln))
+	})
 }
 
 func defaultConfigPath() string {

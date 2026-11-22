@@ -22,9 +22,9 @@ Watch the videos on your Windows PC on an Android TV, phone or tablet.
 ## 1. Set up the PC
 
 1. Download `HomeStreamer.exe` from the [latest release](../../releases/latest) and put it in its own folder, for example `C:\HomeStreamer\`.
-2. Double-click it once. It creates `config.json` next to itself, shares your **Videos** folder, and shows the address it's using.
+2. Double-click it once. It has no window: its icon (a blue play button) appears next to the clock. Windows may put new icons under the **^** arrow; drag it next to the clock to keep it visible. On the first run it creates `config.json` next to itself and shares your **Videos** folder. Right-click the icon for its menu: **Open the player**, **Choose video folders…**, **Show addresses**, **Show log**, **Start with Windows** and **Quit**.
 3. When Windows Firewall asks, allow access on **private networks**. The TV can't connect without this.
-4. To share other folders, close the window, open `config.json` in Notepad, and edit `folders`. In JSON, backslashes are written twice:
+4. To share other folders, right-click the icon → **Choose video folders…**, which opens `config.json` in Notepad, and edit `folders`. In JSON, backslashes are written twice:
 
    ```json
    {
@@ -37,10 +37,10 @@ Watch the videos on your Windows PC on an Android TV, phone or tablet.
    }
    ```
 
-   Then start `HomeStreamer.exe` again.
-5. To check it's working, open the address it shows (like `http://192.168.1.20:8095/`) in a browser on the PC.
+   Save, then right-click the icon → **Quit** and start `HomeStreamer.exe` again.
+5. To check it's working, right-click the icon → **Open the player**.
 
-**Start automatically with Windows:** press `Win + R`, type `shell:startup`, press Enter, and put a shortcut to `HomeStreamer.exe` in the folder that opens. In the shortcut's properties, set **Run** to **Minimized**.
+**Starts with Windows:** HomeStreamer starts by itself every time you sign in to Windows (turn it off with **Start with Windows** in the menu). If Windows waits at the sign-in screen after a restart, it starts once you sign in. If you made a Startup-folder shortcut with an older version, you can delete it (`Win + R`, `shell:startup`).
 
 Also make sure the PC doesn't go to sleep while you watch (Settings → System → Power).
 
@@ -54,7 +54,7 @@ Some files can't play on every device, for example 4K Dolby Vision on a phone, o
    winget install Gyan.FFmpeg
    ```
 
-2. Close and restart HomeStreamer. The window should say "FFmpeg found".
+2. Right-click the icon → **Quit**, and start HomeStreamer again. **Show log** should say "FFmpeg found".
 
 HomeStreamer uses your graphics card's video encoder when it has one (NVIDIA, Intel or AMD), and the processor otherwise. You can also put `ffmpeg.exe` and `ffprobe.exe` next to `HomeStreamer.exe`, or set `"ffmpeg": "C:\\path\\to\\ffmpeg.exe"` in `config.json`.
 
@@ -85,7 +85,7 @@ Or with a computer on the same network: enable Developer options and network deb
 
 ## 3. Watch
 
-Open **Home Streamer**. It finds the PC automatically. If it doesn't, type the PC's address (shown in the server window).
+Open **Home Streamer**. It finds the PC automatically. If it doesn't, type the PC's address (right-click the HomeStreamer icon on the PC → **Show addresses**).
 
 On a phone or tablet:
 
@@ -126,7 +126,7 @@ The browser player has the same subtitles (SRT files and the subtitles inside th
 
 1. Create a free Tailscale account, then install Tailscale on the **Windows PC** and sign in.
 2. Install **Tailscale** from the Play Store on your **phone or tablet** (or TV) and sign in with the same account. Keep it switched on when you're away.
-3. Find the PC's Tailscale address. The Home Streamer server window shows it as "Tailscale (away from home) address", for example `100.101.102.103:8095`.
+3. Find the PC's Tailscale address. Right-click the HomeStreamer icon → **Show addresses** shows it as "Away from home (Tailscale)", for example `100.101.102.103:8095`.
 4. In the Home Streamer app, open **Settings → Away from home**, type that address, and press **Save**.
 
 The app tries the home address first and switches to Tailscale automatically when you're out. The header shows "Away (Tailscale)" when it's using it.

@@ -88,7 +88,7 @@ func findFFmpeg(cfg *Config) *FFmpeg {
 }
 
 func (f *FFmpeg) detect(preferred string) {
-	out, _ := exec.Command(f.FFmpeg, "-hide_banner", "-filters").Output()
+	out, _ := command(context.Background(), f.FFmpeg, "-hide_banner", "-filters").Output()
 	f.Zscale = strings.Contains(string(out), " zscale ") && strings.Contains(string(out), " tonemap ")
 	encoders := []string{"h264_nvenc", "h264_qsv", "h264_amf"}
 	if preferred != "" {
@@ -99,7 +99,7 @@ func (f *FFmpeg) detect(preferred string) {
 			break
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		err := exec.CommandContext(ctx, f.FFmpeg, "-v", "error", "-f", "lavfi", "-i", "color=black:s=1280x720:d=0.5",
+		err := command(ctx, f.FFmpeg, "-v", "error", "-f", "lavfi", "-i", "color=black:s=1280x720:d=0.5",
 			"-c:v", e, "-f", "null", "-").Run()
 		cancel()
 		if err == nil {
@@ -197,7 +197,7 @@ func (f *FFmpeg) Probe(abs string) (*MediaInfo, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, f.FFprobe, "-v", "error", "-show_format", "-show_streams", "-of", "json", abs).Output()
+	out, err := command(ctx, f.FFprobe, "-v", "error", "-show_format", "-show_streams", "-of", "json", abs).Output()
 	if err != nil {
 		return nil, fmt.Errorf("ffprobe: %w", err)
 	}
@@ -354,7 +354,7 @@ func (f *FFmpeg) extractSubs(abs, dir string, idx []int, duration float64, job *
 	}
 	start := time.Now()
 	log.Printf("Extracting %d subtitle tracks from %s…", len(idx), filepath.Base(abs))
-	cmd := exec.Command(f.FFmpeg, args...)
+	cmd := command(context.Background(), f.FFmpeg, args...)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()
@@ -600,7 +600,7 @@ func (ss *session) launch(f *FFmpeg, n int) error {
 	}
 	list := filepath.Join(ss.dir, fmt.Sprintf("list-%d.csv", gen))
 	args := f.transcodeArgs(ss.abs, ss.mi, ss.q, n, ss.dir, list)
-	cmd := exec.Command(f.FFmpeg, args...)
+	cmd := command(context.Background(), f.FFmpeg, args...)
 	stderr, _ := cmd.StderrPipe()
 	if err := cmd.Start(); err != nil {
 		return err
@@ -727,4 +727,11 @@ func (f *FFmpeg) transcodeArgs(abs string, mi *MediaInfo, q Quality, startSeg in
 
 func fmtDur(sec int) string {
 	return fmt.Sprintf("%d:%02d:%02d", sec/3600, sec/60%60, sec%60)
+}
+
+// command runs a helper program (FFmpeg) without opening a console window.
+func command(ctx context.Context, name string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, name, args...)
+	hideWindow(cmd)
+	return cmd
 }
