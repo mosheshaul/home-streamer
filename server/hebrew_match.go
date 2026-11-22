@@ -143,7 +143,7 @@ func (t *Titles) hebrewName(key string, r *tmdbResult) string {
 // lookup searches TMDB and returns the Hebrew title when the match is Israeli.
 func (t *Titles) lookup(key string, pn ParsedName) (hebrew, found string, err error) {
 	path := "/search/multi"
-	if pn.HasSeason {
+	if pn.HasSeason || pn.HasEp {
 		path = "/search/tv"
 	}
 	years := []int{0}

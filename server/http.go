@@ -55,6 +55,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("PUT /api/progress/{id}", s.progress.handlePut)
 	mux.HandleFunc("DELETE /api/progress/{id}", s.progress.handleDelete)
 	mux.HandleFunc("GET /api/settings", s.handleSettings)
+	mux.HandleFunc("GET /titles", s.handleTitlesReport)
+	mux.HandleFunc("POST /api/titles/retry", s.handleTitlesRetry)
 	mux.HandleFunc("PUT /api/settings/tmdb", s.handleSetTMDB)
 	mux.HandleFunc("GET /api/info", s.handleInfo)
 	mux.HandleFunc("GET /api/browse", s.handleBrowse)

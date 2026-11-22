@@ -568,6 +568,7 @@ private fun AwayAddressRow(prefs: Prefs) {
 @Composable
 private fun HebrewTitlesRow(prefs: Prefs) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var text by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     // Once the PC has a key, every device uses it: show that instead of an empty box.
@@ -618,7 +619,20 @@ private fun HebrewTitlesRow(prefs: Prefs) {
         status?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 14.sp) }
         Spacer(Modifier.height(8.dp))
         if (saved && !editing) {
-            AppButton("Change key", onClick = { editing = true }, primary = false)
+            Row {
+                AppButton("Change key", onClick = { editing = true }, primary = false)
+                Spacer(Modifier.width(8.dp))
+                AppButton("See what was found", onClick = {
+                    scope.launch {
+                        val url = runCatching { Api.resolve(prefs.serverUrl, prefs.remoteUrl) }.getOrNull() ?: return@launch
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("$url/titles"))
+                            )
+                        }.onFailure { status = "Open $url/titles in a browser to see what the PC found for each title." }
+                    }
+                }, primary = false)
+            }
         } else {
             AppTextField(
                 value = text,

@@ -152,6 +152,7 @@ func runApp(name string, port int, cfgPath string, serve func()) {
 		mOpen := systray.AddMenuItem("Open the player", "Watch in the browser on this PC")
 		mConfig := systray.AddMenuItem("Choose video folders…", "Edit config.json, then restart Home Streamer")
 		mAddr := systray.AddMenuItem("Show addresses", "The addresses to type in the apps")
+		mTitles := systray.AddMenuItem("Hebrew titles report", "What the PC found for each title")
 		mLog := systray.AddMenuItem("Show log", "Messages from Home Streamer, including its addresses")
 		systray.AddSeparator()
 		mAuto := systray.AddMenuItemCheckbox("Start with Windows", "Run Home Streamer automatically when you sign in to Windows", autostartOn())
@@ -173,6 +174,8 @@ func runApp(name string, port int, cfgPath string, serve func()) {
 					cmd.Start()
 				case <-mAddr.ClickedCh:
 					go message(addresses(port), windows.MB_ICONINFORMATION)
+				case <-mTitles.ClickedCh:
+					openURL(playerURL + "titles")
 				case <-mLog.ClickedCh:
 					cmd := exec.Command("notepad.exe", logPath)
 					cmd.Start()

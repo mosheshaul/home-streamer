@@ -110,6 +110,8 @@ func TestCleanName(t *testing.T) {
 		"Heart.of.the.Beast.2026.2160p.REPACK.iT.WEB-DL.DDP5.1.Atmos.DV.HDR10+.H.265-GTM": "Heart of the Beast",
 		"Lo.Kara.Clum.S01.1080p.WEB-DL.AAC2.0.H.264":                                      "Lo Kara Clum Season 1",
 		"Lo.Kara.Clum.S01E03.1080p.WEB-DL":                                                "Lo Kara Clum S01E03",
+		"Haverot.Ep05.HDTV.x264":                                                          "Haverot Episode 5",
+		"Haverot - Episode 12 [HEB]":                                                      "Haverot Episode 12",
 		"The Matrix (1999) [1080p] [YTS.MX]":                                              "The Matrix",
 		"1917.2019.1080p.BluRay.x264":                                                     "1917",
 		"Some_Show_-_Season_2":                                                            "Some Show Season 2",

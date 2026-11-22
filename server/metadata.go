@@ -36,6 +36,8 @@ type Titles struct {
 	queue   chan ParsedName
 	client  *http.Client
 	baseURL string
+	lastErr string // the last failed lookup, for the report page
+	lastAt  time.Time
 }
 
 func NewTitles(cachePath, apiKey string) *Titles {
@@ -136,6 +138,7 @@ func (t *Titles) worker() {
 		if err != nil {
 			log.Printf("Title lookup for %q failed: %v", pn.Title, err)
 			t.mu.Lock()
+			t.lastErr, t.lastAt = fmt.Sprintf("%s: %v", pn.Title, err), time.Now()
 			delete(t.queued, titleKey(pn)) // try again later
 			t.mu.Unlock()
 			time.Sleep(5 * time.Second)

@@ -13,6 +13,7 @@ var (
 	reBrackets = regexp.MustCompile(`\[[^\]]*\]|\{[^}]*\}`)
 	reSeasonEp = regexp.MustCompile(`(?i)^s(\d{1,2})[ ._-]?e(\d{1,3})(?:[ ._-]?e?(\d{1,3}))?$`)
 	reSeason   = regexp.MustCompile(`(?i)^s(\d{1,2})$`)
+	reEpOnly   = regexp.MustCompile(`(?i)^(?:e|ep)(\d{1,3})$`)
 	reXEp      = regexp.MustCompile(`(?i)^(\d{1,2})x(\d{2,3})$`)
 	reYear     = regexp.MustCompile(`^\(?(19[2-9]\d|20[0-4]\d)\)?$`)
 	reJunk     = regexp.MustCompile(`(?i)^(\d{3,4}p|4k|uhd|hd|fhd|sd|web|web-?dl|webrip|web-?rip|bluray|blu-ray|bdrip|brrip|bdremux|remux|dvdrip|dvd|dvdscr|hdtv|hdrip|hdcam|cam|ts|tc|r5|repack|proper|real|rerip|extended|unrated|uncut|remastered|imax|dc|limited|internal|multi|dual|subs?|hebsub|heb|hebrew|eng|x264|x265|h264|h265|h\.264|h\.265|hevc|avc|xvid|divx|10bit|8bit|hdr|hdr10|hdr10\+|dv|dovi|sdr|ddp?\d?(\.\d)?|dd\+?\d?(\.\d)?|eac3|ac3|aac\d?(\.\d)?|dts(-?hd)?|truehd|atmos|flac|mp3|\d\.\d|5\.1|7\.1|2\.0|nf|amzn|dsnp|hmax|atvp|it|hulu|pcok|yts|yify|rarbg|complete|season|series)$`)
@@ -49,6 +50,16 @@ func parseName(raw string) ParsedName {
 			pn.Season, pn.Episode, pn.HasSeason, pn.HasEp = atoi(m[1]), atoi(m[2]), true, true
 			break
 		}
+		if m := reEpOnly.FindStringSubmatch(bare); m != nil && len(title) > 0 {
+			pn.Episode, pn.HasEp = atoi(m[1]), true
+			break
+		}
+		if len(title) > 0 && i+1 < len(words) && (strings.EqualFold(bare, "episode") || strings.EqualFold(bare, "ep") || bare == "פרק") {
+			if n := strings.Trim(words[i+1], "-()"); isAllDigits(n) {
+				pn.Episode, pn.HasEp = atoi(n), true
+				break
+			}
+		}
 		if m := reSeason.FindStringSubmatch(bare); m != nil {
 			pn.Season, pn.HasSeason = atoi(m[1]), true
 			break
@@ -84,6 +95,10 @@ func parseName(raw string) ParsedName {
 // suffix is the season/episode part, in English or Hebrew.
 func (pn ParsedName) suffix(hebrew bool) string {
 	switch {
+	case pn.HasEp && !pn.HasSeason && hebrew:
+		return fmt.Sprintf("פרק %d", pn.Episode)
+	case pn.HasEp && !pn.HasSeason:
+		return fmt.Sprintf("Episode %d", pn.Episode)
 	case pn.HasEp && hebrew:
 		s := fmt.Sprintf("עונה %d פרק %d", pn.Season, pn.Episode)
 		if pn.Episode2 > 0 {
