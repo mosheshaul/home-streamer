@@ -1,0 +1,18 @@
+# Weekly update suggestions (as pull requests) for build tools and libraries.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
+  - package-ecosystem: gomod
+    directory: /server
+    schedule: { interval: weekly }
+    groups:
+      go: { patterns: ["*"] }
+  - package-ecosystem: gradle
+    directory: /android-tv
+    schedule: { interval: weekly }
+    groups:
+      android: { patterns: ["*"] }

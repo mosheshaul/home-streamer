@@ -38,6 +38,21 @@ func NewProgressStore(path string) *ProgressStore {
 	return ps
 }
 
+// maxProgress caps how many videos are remembered; the oldest are dropped.
+const maxProgress = 200
+
+func (ps *ProgressStore) trim() {
+	for len(ps.m) > maxProgress {
+		var oldest string
+		for id, p := range ps.m {
+			if oldest == "" || p.Updated.Before(ps.m[oldest].Updated) {
+				oldest = id
+			}
+		}
+		delete(ps.m, oldest)
+	}
+}
+
 func (ps *ProgressStore) save() {
 	data, _ := json.MarshalIndent(ps.m, "", " ")
 	tmp := ps.path + ".tmp"
@@ -81,6 +96,12 @@ func (ps *ProgressStore) handlePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.ID = r.PathValue("id")
+	if ps.nameOf != nil {
+		if _, ok := ps.nameOf(p.ID); !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+	}
 	p.Updated = time.Now()
 	ps.mu.Lock()
 	// Near the start or the end means "not in progress".
@@ -88,6 +109,7 @@ func (ps *ProgressStore) handlePut(w http.ResponseWriter, r *http.Request) {
 		delete(ps.m, p.ID)
 	} else {
 		ps.m[p.ID] = &p
+		ps.trim()
 	}
 	ps.save()
 	ps.mu.Unlock()
