@@ -16,7 +16,7 @@ var (
 	reEpOnly   = regexp.MustCompile(`(?i)^(?:e|ep)(\d{1,3})$`)
 	reXEp      = regexp.MustCompile(`(?i)^(\d{1,2})x(\d{2,3})$`)
 	reYear     = regexp.MustCompile(`^\(?(19[2-9]\d|20[0-4]\d)\)?$`)
-	reJunk     = regexp.MustCompile(`(?i)^(\d{3,4}p|4k|uhd|hd|fhd|sd|web|web-?dl|webrip|web-?rip|bluray|blu-ray|bdrip|brrip|bdremux|remux|dvdrip|dvd|dvdscr|hdtv|hdrip|hdcam|cam|ts|tc|r5|repack|proper|real|rerip|extended|unrated|uncut|remastered|imax|dc|limited|internal|multi|dual|subs?|hebsub|heb|hebrew|eng|x264|x265|h264|h265|h\.264|h\.265|hevc|avc|xvid|divx|10bit|8bit|hdr|hdr10|hdr10\+|dv|dovi|sdr|ddp?\d?(\.\d)?|dd\+?\d?(\.\d)?|eac3|ac3|aac\d?(\.\d)?|dts(-?hd)?|truehd|atmos|flac|mp3|\d\.\d|5\.1|7\.1|2\.0|nf|amzn|dsnp|hmax|atvp|it|hulu|pcok|yts|yify|rarbg|complete|season|series)$`)
+	reJunk     = regexp.MustCompile(`(?i)^(\d{3,4}p|4k|uhd|hd|fhd|sd|web|web-?dl|webrip|web-?rip|bluray|blu-ray|bdrip|brrip|bdremux|remux|dvdrip|dvd|dvdscr|hdtv|hdrip|hdcam|cam|ts|tc|r5|repack|proper|real|rerip|extended|unrated|uncut|remastered|imax|dc|limited|internal|multi|dual|subs?|hebsub|heb|hebrew|eng|x264|x265|h264|h265|h\.264|h\.265|hevc|avc|xvid|divx|10bit|8bit|hdr|hdr10|hdr10\+|dv|dovi|sdr|ddp?\d?(\.\d)?|dd\+?\d?(\.\d)?|eac3|ac3|aac\d?(\.\d)?|dts(-?hd)?|truehd|atmos|flac|mp3|\d\.\d|5\.1|7\.1|2\.0|nf|amzn|dsnp|hmax|atvp|it|hulu|pcok|yts|yify|rarbg|complete|season|series|il|isr)$`)
 )
 
 // ParsedName is a release name split into its useful parts.
@@ -175,8 +175,16 @@ func isAllDigits(s string) bool {
 // films and shows (when a TMDB key is set), else the cleaned-up name.
 func (l *Library) display(raw string) string {
 	pn := parseName(raw)
-	if he, ok := l.Titles.Hebrew(pn); ok {
-		return pn.compose(he, true)
+	// "Abba Ganuv Trilogy": look up the film, and say it's a trilogy.
+	lookup, extra := pn, ""
+	lower := strings.ToLower(pn.Title)
+	for en, he := range map[string]string{" trilogy": "טרילוגיה", " collection": "אוסף", " duology": "דילוגיה"} {
+		if strings.HasSuffix(lower, en) && len(lower) > len(en)+2 {
+			lookup.Title, extra = strings.TrimSpace(pn.Title[:len(pn.Title)-len(en)]), " – "+he
+		}
+	}
+	if he, ok := l.Titles.Hebrew(lookup); ok {
+		return pn.compose(he+extra, true)
 	}
 	return cleanName(raw)
 }

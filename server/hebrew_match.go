@@ -20,7 +20,7 @@ import (
 
 // lookupVersion changes when matching improves, so names that weren't found
 // before are looked up again.
-const lookupVersion = 2
+const lookupVersion = 3
 
 func (t *Titles) search(key, path, query, lang string, year int) ([]tmdbResult, error) {
 	q := url.Values{"query": {query}, "include_adult": {"false"}}
@@ -52,6 +52,12 @@ func (t *Titles) search(key, path, query, lang string, year int) ([]tmdbResult, 
 		}
 	}
 	return out, nil
+}
+
+// israeli is true for a Hebrew-language title, or one whose original name is
+// in Hebrew (TMDB lists some Israeli films, like "12 שעות באוקטובר", as English).
+func (r *tmdbResult) israeli() bool {
+	return r.OriginalLang == "he" || hasHebrew(r.OriginalTitle+r.OriginalName)
 }
 
 func (r *tmdbResult) year() string { return r.ReleaseDate + r.FirstAirDate }
@@ -102,8 +108,8 @@ func pick(results []tmdbResult, query string, year int) (best *tmdbResult, confi
 			sameName(r.OriginalTitle, query) || sameName(r.OriginalName, query)
 	}
 	for _, pass := range []func(r *tmdbResult) bool{
-		func(r *tmdbResult) bool { return r.OriginalLang == "he" && named(r) && yearOK(r) },
-		func(r *tmdbResult) bool { return r.OriginalLang == "he" && named(r) },
+		func(r *tmdbResult) bool { return r.israeli() && named(r) && yearOK(r) },
+		func(r *tmdbResult) bool { return r.israeli() && named(r) },
 		func(r *tmdbResult) bool { return named(r) && yearOK(r) },
 		func(r *tmdbResult) bool { return year > 0 && yearOK(r) },
 	} {
@@ -161,7 +167,7 @@ func (t *Titles) lookup(key string, pn ParsedName) (hebrew, found string, err er
 				continue
 			}
 			found = best.describe()
-			if best.OriginalLang == "he" {
+			if best.israeli() {
 				if he := t.hebrewName(key, best); he != "" {
 					return he, found, nil
 				}
@@ -179,7 +185,7 @@ func (t *Titles) lookup(key string, pn ParsedName) (hebrew, found string, err er
 		for i := range res {
 			r := &res[i]
 			orig := r.OriginalTitle + r.OriginalName
-			if r.OriginalLang == "he" && sameSkeleton(orig, cand) {
+			if r.israeli() && sameSkeleton(orig, cand) {
 				return strings.TrimSpace(orig), r.describe() + " via " + cand, nil
 			}
 		}
