@@ -196,9 +196,14 @@ class Api(val baseUrl: String) {
         }
     }
 
-    /** Whether the PC shows Israeli titles in Hebrew (it has a TMDB key). */
-    suspend fun hebrewTitles(): Boolean =
-        JSONObject(get("/api/settings", timeoutMs = 6000)).optBoolean("hebrewTitles", false)
+    /**
+     * Whether the PC has a TMDB key (so it shows Israeli titles in Hebrew), and the
+     * key's last 4 characters when it does. Null means no key is saved.
+     */
+    suspend fun tmdbKeyEnd(): String? {
+        val o = JSONObject(get("/api/settings", timeoutMs = 6000))
+        return if (o.optBoolean("hebrewTitles", false)) o.optString("tmdbKeyEnd", "") else null
+    }
 
     /** Sends a TMDB key to the PC, which checks and saves it. Returns null on success, else the PC's message. */
     suspend fun setTmdbKey(key: String): String? = withContext(Dispatchers.IO) {

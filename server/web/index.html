@@ -46,6 +46,7 @@
   #list .meta { font-size: 13px; color: var(--muted); }
   #list .grow { flex: 1; min-width: 0; }
   #tmdbRow { display: flex; gap: 8px; margin: 6px 0; }
+  #tmdbRow[hidden], #tmdbChange[hidden] { display: none; }
   #tmdbRow input { flex: 1; min-width: 0; padding: 6px 8px; font: inherit; border-radius: 6px; border: 1px solid var(--muted); background: transparent; color: inherit; }
   .notice { padding: 14px 16px; background: var(--card); border-radius: 10px; }
   .notice.err { color: var(--error); }
@@ -136,6 +137,7 @@
       <p class="small">Israeli films and shows are shown by their Hebrew names, looked up on TMDB (themoviedb.org). Get a free API key at themoviedb.org → Settings → API, and paste it here.</p>
       <div id="tmdbRow"><input id="tmdbKey" placeholder="TMDB API key" autocomplete="off" spellcheck="false"><button id="tmdbSave">Save</button></div>
       <p class="small" id="tmdbStatus"></p>
+      <button id="tmdbChange" hidden>Change key</button>
     </fieldset>
     <p class="small" id="serverInfo"></p>
     <div class="actions"><button class="primary" id="settingsDone">Done</button></div>
@@ -263,10 +265,18 @@ function openSettings() {
   $('serverInfo').textContent = `Connected to ${serverInfo.name} (${location.host}). Continue watching is saved on the PC.`;
   $('settingsDlg').hidden = false;
   $('tmdbKey').value = '';
-  fetch('/api/settings').then(r => r.json()).then(st => {
-    $('tmdbStatus').textContent = st.hebrewTitles ? '✓ On. To change the key, paste a new one.' : 'Off until a key is added.';
-  }).catch(() => {});
+  fetch('/api/settings').then(r => r.json()).then(showTmdb).catch(() => {});
 }
+// The key is kept on the PC, so once it's saved every device uses it.
+function showTmdb(st) {
+  const saved = !!st.hebrewTitles;
+  $('tmdbRow').hidden = saved;
+  $('tmdbChange').hidden = !saved;
+  $('tmdbStatus').textContent = saved
+    ? '✓ Key saved on the PC' + (st.tmdbKeyEnd ? ` (ends in ${st.tmdbKeyEnd})` : '') + '. All your devices use it, so there’s nothing to enter here.'
+    : 'Off until a key is added.';
+}
+$('tmdbChange').onclick = () => { $('tmdbRow').hidden = false; $('tmdbChange').hidden = true; $('tmdbKey').focus(); };
 $('tmdbSave').onclick = async () => {
   const st = $('tmdbStatus');
   st.textContent = 'Checking…';
@@ -274,6 +284,7 @@ $('tmdbSave').onclick = async () => {
     const r = await fetch('/api/settings/tmdb', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: $('tmdbKey').value.trim() }) });
     if (!r.ok) { st.textContent = (await r.text()).trim(); return; }
     $('tmdbKey').value = '';
+    $('tmdbRow').hidden = true;
     st.textContent = '✓ Saved. Hebrew names appear as the PC looks them up, usually within a minute. Open a folder again to see them.';
   } catch { st.textContent = 'Couldn’t reach the PC.'; }
 };

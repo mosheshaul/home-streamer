@@ -57,6 +57,19 @@ func (t *Titles) Enabled() bool {
 	return t.key != ""
 }
 
+// KeyEnd is the last 4 characters of the saved key, or "".
+func (t *Titles) KeyEnd() string {
+	if t == nil {
+		return ""
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.key) < 12 {
+		return ""
+	}
+	return t.key[len(t.key)-4:]
+}
+
 func (t *Titles) SetKey(k string) {
 	t.mu.Lock()
 	t.key = strings.TrimSpace(k)
@@ -242,7 +255,11 @@ func (t *Titles) CheckKey(key string) error {
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]any{"hebrewTitles": s.lib.Titles.Enabled()})
+	out := map[string]any{"hebrewTitles": s.lib.Titles.Enabled()}
+	if end := s.lib.Titles.KeyEnd(); end != "" {
+		out["tmdbKeyEnd"] = end // so the apps can show which key is saved, never the key itself
+	}
+	writeJSON(w, out)
 }
 
 // handleSetTMDB checks a TMDB key and saves it in config.json. The key is
