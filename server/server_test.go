@@ -136,6 +136,8 @@ func TestHebrewTitles(t *testing.T) {
 				t.Errorf("show searched at %s", r.URL.Path)
 			}
 			w.Write([]byte(`{"results":[{"name":"לא קרה כלום","original_name":"לא קרה כלום","original_language":"he","first_air_date":"2023-01-01"}]}`))
+		case "חברות":
+			w.Write([]byte(`{"results":[{"name":"חברות","original_name":"חברות","original_language":"he"}]}`))
 		case "The Matrix":
 			w.Write([]byte(`{"results":[{"media_type":"movie","title":"מטריקס","original_title":"The Matrix","original_language":"en","release_date":"1999-03-31"}]}`))
 		default:
@@ -146,7 +148,7 @@ func TestHebrewTitles(t *testing.T) {
 	tt := NewTitles(filepath.Join(t.TempDir(), "titles.json"), "k")
 	tt.baseURL = ts.URL
 	lib := &Library{Titles: tt}
-	for _, raw := range []string{"Lo.Kara.Clum.S01E03.1080p.WEB-DL", "The Matrix (1999) [1080p]"} {
+	for _, raw := range []string{"Lo.Kara.Clum.S01E03.1080p.WEB-DL", "The Matrix (1999) [1080p]", "Haverot.S01.1080p.WEB-DL"} {
 		lib.display(raw) // queues the lookup
 	}
 	deadline := time.Now().Add(5 * time.Second)
@@ -154,7 +156,7 @@ func TestHebrewTitles(t *testing.T) {
 		tt.mu.Lock()
 		n := len(tt.m)
 		tt.mu.Unlock()
-		if n == 2 || time.Now().After(deadline) {
+		if n == 3 || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -162,10 +164,26 @@ func TestHebrewTitles(t *testing.T) {
 	if got := lib.display("Lo.Kara.Clum.S01E03.1080p.WEB-DL"); got != "לא קרה כלום – עונה 1 פרק 3" {
 		t.Errorf("Israeli show: got %q", got)
 	}
+	if got := lib.display("Haverot.S01.1080p.WEB-DL"); got != "חברות – עונה 1" {
+		t.Errorf("show found by its Hebrew spelling: got %q", got)
+	}
 	if got := lib.display("The Matrix (1999) [1080p]"); got != "The Matrix" {
 		t.Errorf("foreign film: got %q", got)
 	}
 	if err := tt.CheckKey("bad"); err == nil {
 		t.Error("bad key accepted")
+	}
+}
+
+func TestHebrewSpellings(t *testing.T) {
+	for in, want := range map[string]string{"Haverot": "חברות", "Lo Kara Clum": "לא קרה כלום", "Srugim": "סרוגים", "Fauda": "פאודה", "Ramzor": "רמזור"} {
+		got := hebrewSpellings(in, 6)
+		ok := false
+		for _, g := range got {
+			ok = ok || g == want
+		}
+		if !ok {
+			t.Errorf("%s: %q not in %v", in, want, got)
+		}
 	}
 }

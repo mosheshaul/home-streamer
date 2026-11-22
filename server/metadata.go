@@ -24,6 +24,7 @@ type titleEntry struct {
 	Hebrew  string    `json:"hebrew,omitempty"`
 	Found   string    `json:"found,omitempty"` // what TMDB matched, for troubleshooting
 	Checked time.Time `json:"checked"`
+	V       int       `json:"v,omitempty"` // lookupVersion that made this entry
 }
 
 type Titles struct {
@@ -110,7 +111,7 @@ func (t *Titles) Hebrew(pn ParsedName) (string, bool) {
 	k := titleKey(pn)
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if e, ok := t.m[k]; ok && (e.Hebrew != "" || time.Since(e.Checked) < 30*24*time.Hour) {
+	if e, ok := t.m[k]; ok && (e.Hebrew != "" || (e.V >= lookupVersion && time.Since(e.Checked) < 30*24*time.Hour)) {
 		return e.Hebrew, e.Hebrew != ""
 	}
 	if t.key != "" && !t.queued[k] {
@@ -142,9 +143,11 @@ func (t *Titles) worker() {
 		}
 		if he != "" {
 			log.Printf("Hebrew title: %s → %s", pn.Title, he)
+		} else {
+			log.Printf("No Hebrew title for %q (TMDB: %s)", pn.Title, found)
 		}
 		t.mu.Lock()
-		t.m[titleKey(pn)] = &titleEntry{Hebrew: he, Found: found, Checked: time.Now()}
+		t.m[titleKey(pn)] = &titleEntry{Hebrew: he, Found: found, Checked: time.Now(), V: lookupVersion}
 		data, _ := json.MarshalIndent(t.m, "", "  ")
 		t.mu.Unlock()
 		tmp := t.path + ".tmp"
@@ -156,6 +159,7 @@ func (t *Titles) worker() {
 }
 
 type tmdbResult struct {
+	ID            int    `json:"id"`
 	MediaType     string `json:"media_type"`
 	Title         string `json:"title"`
 	Name          string `json:"name"`
@@ -194,58 +198,6 @@ func (t *Titles) get(key, path string, q url.Values, out any) error {
 		return fmt.Errorf("TMDB answered %s", resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
-}
-
-// lookup searches TMDB and returns the Hebrew title when the match is Israeli.
-func (t *Titles) lookup(key string, pn ParsedName) (hebrew, found string, err error) {
-	q := url.Values{"query": {pn.Title}, "language": {"he-IL"}, "include_adult": {"false"}}
-	path := "/search/multi"
-	if pn.HasSeason {
-		path = "/search/tv"
-		if pn.Year > 0 {
-			q.Set("first_air_date_year", fmt.Sprint(pn.Year))
-		}
-	}
-	var res struct {
-		Results []tmdbResult `json:"results"`
-	}
-	if err := t.get(key, path, q, &res); err != nil {
-		return "", "", err
-	}
-	var best *tmdbResult
-	for i := range res.Results {
-		r := &res.Results[i]
-		if pn.HasSeason {
-			r.MediaType = "tv"
-		}
-		if r.MediaType != "movie" && r.MediaType != "tv" {
-			continue
-		}
-		year := r.ReleaseDate + r.FirstAirDate
-		if pn.Year > 0 && strings.HasPrefix(year, fmt.Sprint(pn.Year)) {
-			best = r
-			break
-		}
-		if best == nil {
-			best = r
-		}
-	}
-	if best == nil {
-		return "", "", nil
-	}
-	orig := best.OriginalTitle + best.OriginalName
-	local := best.Title + best.Name
-	found = fmt.Sprintf("%s %q (%s)", best.MediaType, orig, best.OriginalLang)
-	if best.OriginalLang != "he" {
-		return "", found, nil
-	}
-	if hasHebrew(orig) {
-		return orig, found, nil
-	}
-	if hasHebrew(local) {
-		return local, found, nil
-	}
-	return "", found, nil
 }
 
 // CheckKey makes one request to confirm a key works.
