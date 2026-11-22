@@ -63,7 +63,7 @@ HomeStreamer uses your graphics card's video encoder when it has one (NVIDIA, In
 Names are looked up on TMDB (themoviedb.org), which needs a free key:
 
 1. Make a free account at [themoviedb.org](https://www.themoviedb.org/signup), then open **Settings → API** and request an API key (choose "Personal" use).
-2. Open the web player (`http://<PC address>:8095/`) → **Settings → Hebrew titles**, paste the key and press **Save**.
+2. In the app (**Settings → Hebrew titles**) or the web player (`http://<PC address>:8095/` → **Settings → Hebrew titles**), paste the key and press **Save**. It is saved on the PC, so this is needed only once.
 
 The PC checks each title once and remembers the answer in `titles.json` next to `config.json`; the key is saved in `config.json` as `"tmdbKey"`. Only titles whose original language is Hebrew are changed. Hebrew names show on every device, usually within a minute; open the folder again to see them.
 

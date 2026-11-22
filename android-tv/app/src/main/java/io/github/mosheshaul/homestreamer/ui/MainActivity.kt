@@ -463,6 +463,11 @@ private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChangeServer: () 
         }
         item {
             Spacer(Modifier.height(8.dp))
+            Text("Hebrew titles", fontSize = 18.sp, color = Muted)
+            HebrewTitlesRow(prefs)
+        }
+        item {
+            Spacer(Modifier.height(8.dp))
             Text("Video quality", fontSize = 18.sp, color = Muted)
         }
         items(qualityChoices) { (code, texts) ->
@@ -535,6 +540,55 @@ private fun AwayAddressRow(prefs: Prefs) {
             value = text,
             onValueChange = { text = it },
             label = "PC's Tailscale address, like 100.101.102.103",
+            onDone = { save() },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        AppButton("Save", onClick = { save() })
+        status?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 14.sp, color = Muted) }
+    }
+}
+
+/** The TMDB key that lets the PC show Israeli films and shows by their Hebrew names. It's saved on the PC. */
+@Composable
+private fun HebrewTitlesRow(prefs: Prefs) {
+    val scope = rememberCoroutineScope()
+    var text by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        val on = runCatching {
+            Api.resolve(prefs.serverUrl, prefs.remoteUrl)?.let { Api(it).hebrewTitles() }
+        }.getOrNull()
+        status = when (on) {
+            true -> "On. To change the key, paste a new one."
+            false -> "Off until a key is added."
+            null -> null
+        }
+    }
+    fun save() {
+        if (text.isBlank()) return
+        status = "Checking…"
+        scope.launch {
+            val url = Api.resolve(prefs.serverUrl, prefs.remoteUrl)
+            val err = if (url == null) "Couldn't reach the PC." else runCatching { Api(url).setTmdbKey(text) }
+                .getOrElse { "Couldn't reach the PC." }
+            status = if (err == null) {
+                text = ""
+                "Saved. Hebrew names appear as the PC looks them up, usually within a minute. Open a folder again to see them."
+            } else err
+        }
+    }
+    Column(Modifier.padding(vertical = 8.dp).widthIn(max = 520.dp)) {
+        Text(
+            "Israeli films and shows are shown by their Hebrew names, looked up on TMDB (themoviedb.org). " +
+                "Paste your free TMDB API key here. It's saved on the PC, so you only need to do this once.",
+            fontSize = 14.sp, color = Muted,
+        )
+        Spacer(Modifier.height(8.dp))
+        AppTextField(
+            value = text,
+            onValueChange = { text = it },
+            label = "TMDB API key",
             onDone = { save() },
             modifier = Modifier.fillMaxWidth(),
         )

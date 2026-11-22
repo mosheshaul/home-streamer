@@ -30,7 +30,7 @@ type Config struct {
 	Encoder string `json:"encoder,omitempty"`
 	HWAccel string `json:"hwaccel,omitempty"`
 	// Optional: a free TMDB (themoviedb.org) key, used to show Israeli
-	// films and shows by their Hebrew names. Can be set in the web player.
+	// films and shows by their Hebrew names. Can be set in the app or the web player.
 	TMDBKey string `json:"tmdbKey,omitempty"`
 }
 

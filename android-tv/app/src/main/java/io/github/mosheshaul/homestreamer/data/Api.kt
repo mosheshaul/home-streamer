@@ -154,6 +154,29 @@ class Api(val baseUrl: String) {
         )
     }
 
+    /** Whether the PC shows Israeli titles in Hebrew (it has a TMDB key). */
+    suspend fun hebrewTitles(): Boolean =
+        JSONObject(get("/api/settings", timeoutMs = 6000)).optBoolean("hebrewTitles", false)
+
+    /** Sends a TMDB key to the PC, which checks and saves it. Returns null on success, else the PC's message. */
+    suspend fun setTmdbKey(key: String): String? = withContext(Dispatchers.IO) {
+        val conn = URL(absolute("/api/settings/tmdb")).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 8000
+            conn.readTimeout = 20000
+            conn.requestMethod = "PUT"
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            conn.outputStream.use { it.write(JSONObject().put("key", key.trim()).toString().toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            if (code in 200..299) null
+            else conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText().trim() }?.ifBlank { null }
+                ?: "The PC answered $code. Update HomeStreamer.exe on the PC to the latest version."
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     private suspend fun get(path: String, timeoutMs: Int = 15000): String = withContext(Dispatchers.IO) {
         val conn = URL(absolute(path)).openConnection() as HttpURLConnection
         conn.connectTimeout = timeoutMs
