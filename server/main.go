@@ -109,7 +109,7 @@ func main() {
 			log.Printf("  Home network address: http://%s:%d/  (open in a browser to test)", ip, cfg.Port)
 		}
 	}
-	handler := logRequests(srv.routes())
+	handler := logRequests(allowHosts(srv.routes()))
 	// Also answer on the standard web port, so a browser works with just the
 	// address (http://100.x.y.z) and no ":8095". Skipped if the port is taken.
 	if cfg.Port != 80 {

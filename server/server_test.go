@@ -190,3 +190,16 @@ func TestHebrewSpellings(t *testing.T) {
 		}
 	}
 }
+
+func TestHostAllowed(t *testing.T) {
+	for _, h := range []string{"192.168.1.20:8095", "100.101.102.103", "[fd7a:115c::1]:8095", "localhost:8095", "DESKTOP-ABC", "desktop-abc.local", "desktop-abc.tail1234.ts.net:8095", "pc.lan", ""} {
+		if !hostAllowed(h, "DESKTOP-ABC") {
+			t.Errorf("%q should be allowed", h)
+		}
+	}
+	for _, h := range []string{"evil.example.com", "rebind.attacker.net:8095", "desktop-abc.evil.com.attacker.org"} {
+		if hostAllowed(h, "DESKTOP-ABC") {
+			t.Errorf("%q should be refused", h)
+		}
+	}
+}
